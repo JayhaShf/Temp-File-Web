@@ -43,6 +43,14 @@
         add_header Cache-Control "no-store" always;
     }
 
+    location = /upload/ {
+        return 301 /upload;
+    }
+
+    location = /uploads {
+        return 301 /uploads/;
+    }
+
     location ~ ^/(?!_listing/).+/$ {
         limit_except GET HEAD {
             deny all;
@@ -69,7 +77,7 @@
         }
     }
 
-    location ^~ /uploads/ {
+    location /uploads/ {
         client_max_body_size ${MAX_UPLOAD_SIZE};
         dav_methods PUT;
         create_full_put_path off;
