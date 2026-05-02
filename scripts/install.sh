@@ -253,6 +253,21 @@ prompt_required() {
   done
 }
 
+prompt_port() {
+  local text="$1"
+  local default="${2:-}"
+  local answer
+
+  while true; do
+    answer="$(prompt "$text" "$default")"
+    if is_valid_port "$answer"; then
+      printf '%s' "$answer"
+      return 0
+    fi
+    echo "$(msg bad_port)" >&2
+  done
+}
+
 prompt_yes_no() {
   local text="$1"
   local default="${2:-y}"
@@ -278,6 +293,22 @@ prompt_yes_no() {
         ;;
     esac
   done
+}
+
+ensure_interactive_acme_inputs() {
+  if [[ "$INSTALL_ACME" != "1" ]]; then
+    return 0
+  fi
+
+  if [[ -z "$DOMAIN" ]]; then
+    echo "$(msg acme_need_domain)" >&2
+    DOMAIN="$(prompt_required "$(msg ask_domain)" "" "bad_domain")"
+  fi
+
+  if [[ "$HTTP_PORT" != "80" ]]; then
+    echo "$(msg acme_need_http_80)" >&2
+    HTTP_PORT="80"
+  fi
 }
 
 prompt_secret() {
@@ -430,8 +461,8 @@ collect_interactive_input() {
 
   DOMAIN="$(prompt "$(msg ask_domain)" "${DOMAIN:-}")"
   ACCESS_HOST="$(prompt_required "$(msg ask_access_host)" "${ACCESS_HOST:-$IP}" "bad_access_host")"
-  HTTP_PORT="$(prompt "$(msg ask_http_port)" "${HTTP_PORT:-80}")"
-  HTTPS_PORT="$(prompt "$(msg ask_https_port)" "${HTTPS_PORT:-443}")"
+  HTTP_PORT="$(prompt_port "$(msg ask_http_port)" "${HTTP_PORT:-80}")"
+  HTTPS_PORT="$(prompt_port "$(msg ask_https_port)" "${HTTPS_PORT:-443}")"
   SITE_TITLE="$(prompt "$(msg ask_title)" "${SITE_TITLE:-Temp File Web}")"
   TFW_USER="$(prompt "$(msg ask_user)" "${TFW_USER:-$(detect_nginx_user)}")"
   DATA_DIR="$(prompt "$(msg ask_data)" "${DATA_DIR:-/srv/tfw/data}")"
@@ -444,6 +475,8 @@ collect_interactive_input() {
       INSTALL_ACME="0"
     fi
   fi
+
+  ensure_interactive_acme_inputs
 
   if [[ "$INSTALL_ACME" == "1" ]]; then
     ACME_WEBROOT="$(prompt "$(msg ask_acme_webroot)" "${ACME_WEBROOT:-/var/www/_acme-challenge}")"
