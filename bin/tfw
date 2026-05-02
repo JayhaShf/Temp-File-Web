@@ -19,7 +19,7 @@ INSTALL_ACME="${INSTALL_ACME:-1}"
 SITE_MODE="${SITE_MODE:-https}"
 HTTP_PORT="${HTTP_PORT:-80}"
 HTTPS_PORT="${HTTPS_PORT:-443}"
-CONF="${CONF:-/etc/nginx/conf.d/tfw-$SITE_ID.conf}"
+CONF="${CONF:-/etc/nginx/conf.d/temp-file-web.conf}"
 SITE_DIR="${SITE_DIR:-/etc/tfw/sites/$SITE_ID}"
 AUTH_FILE="${AUTH_FILE:-$SITE_DIR/file-upload.htpasswd}"
 DATA_DIR="${DATA_DIR:-/srv/tfw/data}"
@@ -64,16 +64,218 @@ url_listing="${url_scheme}://${url_authority}/_listing/"
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
-    echo "missing command: $1" >&2
+    echo "$(msg missing_command "$1")" >&2
     exit 1
   }
 }
 
 need_root() {
   [[ "$(id -u)" -eq 0 ]] || {
-    echo "need root" >&2
+    echo "$(msg need_root)" >&2
     exit 1
   }
+}
+
+msg() {
+  local key="$1"
+  case "$LANGUAGE" in
+    zh)
+      case "$key" in
+        missing_command) echo "缺少命令: $2" ;;
+        need_root) echo "需要 root 权限" ;;
+        ok_dir) echo "正常（目录）" ;;
+        ok_file) echo "正常（文件）" ;;
+        missing) echo "缺失" ;;
+        host_time) echo "本地时间" ;;
+        utc_time) echo "UTC 时间" ;;
+        host_name) echo "主机名" ;;
+        runtime_config) echo "运行配置" ;;
+        language) echo "语言" ;;
+        site_mode) echo "站点模式" ;;
+        site_title) echo "站点标题" ;;
+        site_id) echo "站点标识" ;;
+        domain) echo "域名" ;;
+        access_host) echo "访问主机" ;;
+        http_port) echo "HTTP 端口" ;;
+        https_port) echo "HTTPS 端口" ;;
+        resolve_ip) echo "解析 IP" ;;
+        site_dir) echo "站点目录" ;;
+        config_file) echo "配置文件" ;;
+        auth_file) echo "认证文件" ;;
+        data_dir) echo "数据目录" ;;
+        upload_dir) echo "上传目录" ;;
+        browser_html) echo "浏览页" ;;
+        upload_html) echo "上传页" ;;
+        acme_enabled) echo "ACME 已启用" ;;
+        enabled_yes) echo "是" ;;
+        enabled_no) echo "否" ;;
+        acme_webroot) echo "ACME webroot" ;;
+        cert_file) echo "证书文件" ;;
+        key_file) echo "私钥文件" ;;
+        access_log) echo "访问日志" ;;
+        error_log) echo "错误日志" ;;
+        auth_user) echo "上传用户" ;;
+        root_url) echo "根地址" ;;
+        upload_page) echo "上传页面" ;;
+        uploads_dir) echo "上传目录地址" ;;
+        listing_api) echo "目录接口" ;;
+        status_time) echo "时间" ;;
+        summary) echo "摘要" ;;
+        summary_ok) echo "站点可访问" ;;
+        summary_partial) echo "站点部分可用" ;;
+        summary_fail) echo "站点不可用" ;;
+        free_space) echo "剩余空间" ;;
+        nginx_test) echo "Nginx 检查" ;;
+        nginx_process) echo "Nginx 进程" ;;
+        unavailable) echo "不可用" ;;
+        fail) echo "失败" ;;
+        none) echo "无" ;;
+        root_items) echo "根目录项目数" ;;
+        upload_files) echo "上传文件数" ;;
+        upload_size) echo "上传目录大小" ;;
+        root_page) echo "根页面" ;;
+        uploads_page) echo "上传目录页面" ;;
+        listing_json) echo "目录 JSON" ;;
+        upload_expect) echo "上传页（预期 401）" ;;
+        listing_count) echo "目录数量" ;;
+        dir_not_found) echo "目录不存在: $2" ;;
+        directory) echo "目录" ;;
+        unknown_log_target) echo "未知日志类型: $2" ;;
+        logs_usage) echo "用法: tfw logs [access|error] [lines]" ;;
+        lines_integer) echo "lines 必须是整数" ;;
+        log_not_found) echo "日志不存在: $2" ;;
+        log_file) echo "日志文件" ;;
+        lines) echo "行数" ;;
+        restart_systemctl) echo "重启结果" ;;
+        restart_reload) echo "重载结果" ;;
+        restart_ok) echo "systemctl 成功" ;;
+        reload_ok) echo "reload 成功" ;;
+        passwd_usage) echo "用法: tfw passwd [user] [password]" ;;
+        passwd_user_prompt) echo "用户" ;;
+        passwd_new_prompt) echo "新密码（留空随机生成）" ;;
+        passwd_confirm) echo "确认" ;;
+        passwd_mismatch) echo "两次密码不一致" ;;
+        passwd_verify_fail) echo "密码校验失败：认证文件格式无效，已回滚" ;;
+        backup) echo "备份文件" ;;
+        local_verify) echo "本地校验" ;;
+        remote_verify) echo "远端校验" ;;
+        acme_bin) echo "acme.sh 可执行文件" ;;
+        acme_home) echo "acme.sh 目录" ;;
+        help_time) echo "显示主机时间" ;;
+        help_info) echo "显示配置路径和本地文件状态" ;;
+        help_urls) echo "显示公开访问地址" ;;
+        help_cert) echo "显示证书相关路径" ;;
+        help_status) echo "执行 nginx 与 HTTP 检查" ;;
+        help_test) echo "执行 nginx -t" ;;
+        help_ls) echo "列出目录文件" ;;
+        help_logs) echo "查看日志尾部" ;;
+        help_restart) echo "检查并重启/重载 nginx" ;;
+        help_passwd) echo "轮换上传认证密码" ;;
+        help_config) echo "配置来源" ;;
+        help_default_config) echo "默认运行配置" ;;
+        help_override) echo "可覆盖为" ;;
+        unknown_command) echo "未知命令: $2" ;;
+      esac
+      ;;
+    *)
+      case "$key" in
+        missing_command) echo "missing command: $2" ;;
+        need_root) echo "need root" ;;
+        ok_dir) echo "ok (dir)" ;;
+        ok_file) echo "ok (file)" ;;
+        missing) echo "missing" ;;
+        host_time) echo "local" ;;
+        utc_time) echo "utc" ;;
+        host_name) echo "host" ;;
+        runtime_config) echo "runtime config" ;;
+        language) echo "language" ;;
+        site_mode) echo "site mode" ;;
+        site_title) echo "site title" ;;
+        site_id) echo "site id" ;;
+        domain) echo "domain" ;;
+        access_host) echo "access host" ;;
+        http_port) echo "http port" ;;
+        https_port) echo "https port" ;;
+        resolve_ip) echo "resolve ip" ;;
+        site_dir) echo "site dir" ;;
+        config_file) echo "config file" ;;
+        auth_file) echo "auth file" ;;
+        data_dir) echo "data dir" ;;
+        upload_dir) echo "upload dir" ;;
+        browser_html) echo "browser html" ;;
+        upload_html) echo "upload html" ;;
+        acme_enabled) echo "acme enabled" ;;
+        enabled_yes) echo "yes" ;;
+        enabled_no) echo "no" ;;
+        acme_webroot) echo "acme webroot" ;;
+        cert_file) echo "cert file" ;;
+        key_file) echo "key file" ;;
+        access_log) echo "access log" ;;
+        error_log) echo "error log" ;;
+        auth_user) echo "auth user" ;;
+        root_url) echo "root" ;;
+        upload_page) echo "upload page" ;;
+        uploads_dir) echo "uploads dir" ;;
+        listing_api) echo "listing api" ;;
+        status_time) echo "time" ;;
+        summary) echo "summary" ;;
+        summary_ok) echo "site reachable" ;;
+        summary_partial) echo "site partially available" ;;
+        summary_fail) echo "site unavailable" ;;
+        free_space) echo "free space" ;;
+        nginx_test) echo "nginx test" ;;
+        nginx_process) echo "nginx process" ;;
+        unavailable) echo "unavailable" ;;
+        fail) echo "fail" ;;
+        none) echo "none" ;;
+        root_items) echo "root items" ;;
+        upload_files) echo "upload files" ;;
+        upload_size) echo "upload size" ;;
+        root_page) echo "root page" ;;
+        uploads_page) echo "uploads page" ;;
+        listing_json) echo "listing json" ;;
+        upload_expect) echo "upload page (expect 401)" ;;
+        listing_count) echo "listing count" ;;
+        dir_not_found) echo "directory not found: $2" ;;
+        directory) echo "directory" ;;
+        unknown_log_target) echo "unknown log target: $2" ;;
+        logs_usage) echo "use: tfw logs [access|error] [lines]" ;;
+        lines_integer) echo "lines must be an integer" ;;
+        log_not_found) echo "log not found: $2" ;;
+        log_file) echo "log file" ;;
+        lines) echo "lines" ;;
+        restart_systemctl) echo "restart" ;;
+        restart_reload) echo "restart" ;;
+        restart_ok) echo "systemctl ok" ;;
+        reload_ok) echo "reload ok" ;;
+        passwd_usage) echo "use: tfw passwd [user] [password]" ;;
+        passwd_user_prompt) echo "user" ;;
+        passwd_new_prompt) echo "new password (empty = random)" ;;
+        passwd_confirm) echo "confirm" ;;
+        passwd_mismatch) echo "password mismatch" ;;
+        passwd_verify_fail) echo "password verify failed: auth file format invalid, rolled back" ;;
+        backup) echo "backup" ;;
+        local_verify) echo "local verify" ;;
+        remote_verify) echo "remote verify" ;;
+        acme_bin) echo "acme bin" ;;
+        acme_home) echo "acme home" ;;
+        help_time) echo "show host time" ;;
+        help_info) echo "show config paths and local files" ;;
+        help_urls) echo "show public URLs" ;;
+        help_cert) echo "show certificate paths" ;;
+        help_status) echo "run nginx and HTTP checks" ;;
+        help_test) echo "run nginx -t" ;;
+        help_ls) echo "list files in a directory" ;;
+        help_logs) echo "tail logs" ;;
+        help_restart) echo "test and restart/reload nginx" ;;
+        help_passwd) echo "rotate upload auth password" ;;
+        help_config) echo "Config source" ;;
+        help_default_config) echo "default runtime config" ;;
+        help_override) echo "override with" ;;
+        unknown_command) echo "unknown command: $2" ;;
+      esac
+      ;;
+  esac
 }
 
 auth_user() {
@@ -97,11 +299,11 @@ set_auth_file_permissions() {
 path_state() {
   local path="$1"
   if [[ -d "$path" ]]; then
-    echo "ok (dir)"
+    echo "$(msg ok_dir)"
   elif [[ -f "$path" ]]; then
-    echo "ok (file)"
+    echo "$(msg ok_file)"
   else
-    echo "missing"
+    echo "$(msg missing)"
   fi
 }
 
@@ -167,47 +369,55 @@ http_code() {
 }
 
 show_time() {
-  echo "local : $(date '+%Y-%m-%d %H:%M:%S %Z (%z)')"
-  echo "utc   : $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-  echo "host  : $(hostname)"
+  echo "$(printf '%-15s: %s' "$(msg host_time)" "$(date '+%Y-%m-%d %H:%M:%S %Z (%z)')")"
+  echo "$(printf '%-15s: %s' "$(msg utc_time)" "$(date -u '+%Y-%m-%d %H:%M:%S UTC')")"
+  echo "$(printf '%-15s: %s' "$(msg host_name)" "$(hostname)")"
 }
 
 show_urls() {
-  echo "root            : $url_root"
-  echo "upload page     : $url_upload"
-  echo "uploads dir     : $url_uploads"
-  echo "listing api     : $url_listing"
+  echo "$(printf '%-15s: %s' "$(msg root_url)" "$url_root")"
+  echo "$(printf '%-15s: %s' "$(msg upload_page)" "$url_upload")"
+  echo "$(printf '%-15s: %s' "$(msg uploads_dir)" "$url_uploads")"
+  echo "$(printf '%-15s: %s' "$(msg listing_api)" "$url_listing")"
 }
 
 show_info() {
-  echo "runtime config  : $CONFIG_FILE ($(path_state "$CONFIG_FILE"))"
-  echo "language        : $LANGUAGE"
-  echo "site mode       : $SITE_MODE"
-  echo "site title      : $SITE_TITLE"
-  echo "site id         : $SITE_ID"
-  if [[ -n "$DOMAIN" ]]; then
-    echo "domain          : $DOMAIN"
-  fi
-  echo "access host     : $ACCESS_HOST"
-  echo "http port       : $HTTP_PORT"
-  echo "https port      : $HTTPS_PORT"
-  echo "resolve ip      : $IP"
-  echo "site dir        : $SITE_DIR ($(path_state "$SITE_DIR"))"
-  echo "config file     : $CONF ($(path_state "$CONF"))"
-  echo "auth file       : $AUTH_FILE ($(path_state "$AUTH_FILE"))"
-  echo "data dir        : $DATA_DIR ($(path_state "$DATA_DIR"))"
-  echo "upload dir      : $UPLOAD_DIR ($(path_state "$UPLOAD_DIR"))"
-  echo "browser html    : $BROWSER_HTML ($(path_state "$BROWSER_HTML"))"
-  echo "upload html     : $UPLOAD_HTML ($(path_state "$UPLOAD_HTML"))"
-  echo "acme enabled    : $INSTALL_ACME"
+  local acme_enabled_text auth_user_name
   if [[ "$INSTALL_ACME" == "1" ]]; then
-    echo "acme webroot    : $ACME_WEBROOT ($(path_state "$ACME_WEBROOT"))"
+    acme_enabled_text="$(msg enabled_yes)"
+  else
+    acme_enabled_text="$(msg enabled_no)"
   fi
-  echo "cert file       : $CERT_FILE ($(path_state "$CERT_FILE"))"
-  echo "key file        : $KEY_FILE ($(path_state "$KEY_FILE"))"
-  echo "access log      : $ACCESS_LOG ($(path_state "$ACCESS_LOG"))"
-  echo "error log       : $ERROR_LOG ($(path_state "$ERROR_LOG"))"
-  echo "auth user       : $(auth_user || true)"
+  auth_user_name="$(auth_user || true)"
+
+  echo "$(printf '%-15s: %s (%s)' "$(msg runtime_config)" "$CONFIG_FILE" "$(path_state "$CONFIG_FILE")")"
+  echo "$(printf '%-15s: %s' "$(msg language)" "$LANGUAGE")"
+  echo "$(printf '%-15s: %s' "$(msg site_mode)" "$SITE_MODE")"
+  echo "$(printf '%-15s: %s' "$(msg site_title)" "$SITE_TITLE")"
+  echo "$(printf '%-15s: %s' "$(msg site_id)" "$SITE_ID")"
+  if [[ -n "$DOMAIN" ]]; then
+    echo "$(printf '%-15s: %s' "$(msg domain)" "$DOMAIN")"
+  fi
+  echo "$(printf '%-15s: %s' "$(msg access_host)" "$ACCESS_HOST")"
+  echo "$(printf '%-15s: %s' "$(msg http_port)" "$HTTP_PORT")"
+  echo "$(printf '%-15s: %s' "$(msg https_port)" "$HTTPS_PORT")"
+  echo "$(printf '%-15s: %s' "$(msg resolve_ip)" "$IP")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg site_dir)" "$SITE_DIR" "$(path_state "$SITE_DIR")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg config_file)" "$CONF" "$(path_state "$CONF")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg auth_file)" "$AUTH_FILE" "$(path_state "$AUTH_FILE")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg data_dir)" "$DATA_DIR" "$(path_state "$DATA_DIR")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg upload_dir)" "$UPLOAD_DIR" "$(path_state "$UPLOAD_DIR")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg browser_html)" "$BROWSER_HTML" "$(path_state "$BROWSER_HTML")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg upload_html)" "$UPLOAD_HTML" "$(path_state "$UPLOAD_HTML")")"
+  echo "$(printf '%-15s: %s' "$(msg acme_enabled)" "$acme_enabled_text")"
+  if [[ "$INSTALL_ACME" == "1" ]]; then
+    echo "$(printf '%-15s: %s (%s)' "$(msg acme_webroot)" "$ACME_WEBROOT" "$(path_state "$ACME_WEBROOT")")"
+  fi
+  echo "$(printf '%-15s: %s (%s)' "$(msg cert_file)" "$CERT_FILE" "$(path_state "$CERT_FILE")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg key_file)" "$KEY_FILE" "$(path_state "$KEY_FILE")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg access_log)" "$ACCESS_LOG" "$(path_state "$ACCESS_LOG")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg error_log)" "$ERROR_LOG" "$(path_state "$ERROR_LOG")")"
+  echo "$(printf '%-15s: %s' "$(msg auth_user)" "${auth_user_name:-$(msg none)}")"
   echo
   show_urls
 }
@@ -218,39 +428,70 @@ test_nginx() {
 }
 
 show_status() {
-  need nginx
-  need curl
+  local listing_payload listing_count auth_user_name nginx_test_text nginx_process_text
+  local root_code uploads_code listing_code upload_code summary_text
+  if ! command -v nginx >/dev/null 2>&1; then
+    echo "$(msg missing_command nginx)" >&2
+    exit 1
+  fi
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "$(msg missing_command curl)" >&2
+    exit 1
+  fi
 
-  local listing_payload listing_count auth_user_name
   listing_payload="$(curl -sk --resolve "${ACCESS_HOST}:${url_port}:${IP}" "$url_listing" 2>/dev/null || true)"
   listing_count="$(printf '%s' "$listing_payload" | grep -o '"name":"' | wc -l | awk '{print $1}')"
   auth_user_name="$(auth_user || true)"
-
-  echo "time            : $(date '+%Y-%m-%d %H:%M:%S %Z (%z)')"
-  echo "site mode       : $SITE_MODE"
-  if [[ -n "$DOMAIN" ]]; then
-    echo "domain          : $DOMAIN"
+  if nginx -t >/dev/null 2>&1; then
+    nginx_test_text="$(msg ok_file)"
+  else
+    nginx_test_text="$(msg fail)"
   fi
-  echo "access host     : $ACCESS_HOST"
-  echo "resolve ip      : $IP"
-  echo "config file     : $CONF ($(path_state "$CONF"))"
-  echo "auth file       : $AUTH_FILE ($(path_state "$AUTH_FILE"))"
-  echo "cert file       : $CERT_FILE ($(path_state "$CERT_FILE"))"
-  echo "key file        : $KEY_FILE ($(path_state "$KEY_FILE"))"
-  echo "data dir        : $DATA_DIR ($(path_state "$DATA_DIR"))"
-  echo "upload dir      : $UPLOAD_DIR ($(path_state "$UPLOAD_DIR"))"
-  echo "free space      : $(free_space "$DATA_DIR")"
-  nginx -t >/dev/null 2>&1 && echo "nginx test      : ok" || echo "nginx test      : fail"
-  pgrep -x nginx >/dev/null 2>&1 && echo "nginx process   : ok ($(pgrep -xc nginx))" || echo "nginx process   : fail"
-  echo "auth user       : ${auth_user_name:-none}"
-  echo "root items      : $(count_entries "$DATA_DIR")"
-  echo "upload files    : $(count_entries "$UPLOAD_DIR" files)"
-  echo "upload size     : $(dir_size "$UPLOAD_DIR")"
-  echo "root page       : $(http_code "$url_root")"
-  echo "uploads page    : $(http_code "$url_uploads")"
-  echo "listing json    : $(http_code "$url_listing")"
-  echo "upload page     : $(http_code "$url_upload") (expect 401)"
-  echo "listing count   : ${listing_count:-0}"
+  if pgrep -x nginx >/dev/null 2>&1; then
+    nginx_process_text="$(msg ok_file) ($(pgrep -xc nginx))"
+  else
+    nginx_process_text="$(msg fail)"
+  fi
+
+  echo "$(printf '%-15s: %s' "$(msg status_time)" "$(date '+%Y-%m-%d %H:%M:%S %Z (%z)')")"
+  echo "$(printf '%-15s: %s' "$(msg site_mode)" "$SITE_MODE")"
+  if [[ -n "$DOMAIN" ]]; then
+    echo "$(printf '%-15s: %s' "$(msg domain)" "$DOMAIN")"
+  fi
+  echo "$(printf '%-15s: %s' "$(msg access_host)" "$ACCESS_HOST")"
+  echo "$(printf '%-15s: %s' "$(msg resolve_ip)" "$IP")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg config_file)" "$CONF" "$(path_state "$CONF")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg auth_file)" "$AUTH_FILE" "$(path_state "$AUTH_FILE")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg cert_file)" "$CERT_FILE" "$(path_state "$CERT_FILE")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg key_file)" "$KEY_FILE" "$(path_state "$KEY_FILE")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg data_dir)" "$DATA_DIR" "$(path_state "$DATA_DIR")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg upload_dir)" "$UPLOAD_DIR" "$(path_state "$UPLOAD_DIR")")"
+  echo "$(printf '%-15s: %s' "$(msg free_space)" "$(free_space "$DATA_DIR")")"
+  echo "$(printf '%-15s: %s' "$(msg nginx_test)" "$nginx_test_text")"
+  echo "$(printf '%-15s: %s' "$(msg nginx_process)" "$nginx_process_text")"
+  echo "$(printf '%-15s: %s' "$(msg auth_user)" "${auth_user_name:-$(msg none)}")"
+  echo "$(printf '%-15s: %s' "$(msg root_items)" "$(count_entries "$DATA_DIR")")"
+  echo "$(printf '%-15s: %s' "$(msg upload_files)" "$(count_entries "$UPLOAD_DIR" files)")"
+  echo "$(printf '%-15s: %s' "$(msg upload_size)" "$(dir_size "$UPLOAD_DIR")")"
+  root_code="$(http_code "$url_root")"
+  uploads_code="$(http_code "$url_uploads")"
+  listing_code="$(http_code "$url_listing")"
+  upload_code="$(http_code "$url_upload")"
+
+  if [[ "$root_code" == "200" && "$uploads_code" == "200" && "$listing_code" == "200" ]]; then
+    summary_text="$(msg summary_ok)"
+  elif [[ "$root_code" == "200" || "$uploads_code" == "200" || "$listing_code" == "200" ]]; then
+    summary_text="$(msg summary_partial)"
+  else
+    summary_text="$(msg summary_fail)"
+  fi
+
+  echo "$(printf '%-15s: %s' "$(msg summary)" "$summary_text")"
+  echo "$(printf '%-15s: %s' "$(msg root_page)" "$root_code")"
+  echo "$(printf '%-15s: %s' "$(msg uploads_page)" "$uploads_code")"
+  echo "$(printf '%-15s: %s' "$(msg listing_json)" "$listing_code")"
+  echo "$(printf '%-15s: %s' "$(msg upload_expect)" "$upload_code")"
+  echo "$(printf '%-15s: %s' "$(msg listing_count)" "${listing_count:-0}")"
 }
 
 list_dir() {
@@ -259,11 +500,11 @@ list_dir() {
 
   dir="$(resolve_dir "$target")"
   if [[ ! -d "$dir" ]]; then
-    echo "directory not found: $dir" >&2
+    echo "$(msg dir_not_found "$dir")" >&2
     exit 1
   fi
 
-  echo "directory       : $dir"
+  echo "$(printf '%-15s: %s' "$(msg directory)" "$dir")"
   ls -lah "$dir"
 }
 
@@ -280,24 +521,24 @@ show_logs() {
       file="$ERROR_LOG"
       ;;
     *)
-      echo "unknown log target: $target" >&2
-      echo "use: tfw logs [access|error] [lines]" >&2
+      echo "$(msg unknown_log_target "$target")" >&2
+      echo "$(msg logs_usage)" >&2
       exit 1
       ;;
   esac
 
   [[ "$lines" =~ ^[0-9]+$ ]] || {
-    echo "lines must be an integer" >&2
+    echo "$(msg lines_integer)" >&2
     exit 1
   }
 
   [[ -f "$file" ]] || {
-    echo "log not found: $file" >&2
+    echo "$(msg log_not_found "$file")" >&2
     exit 1
   }
 
-  echo "log file        : $file"
-  echo "lines           : $lines"
+  echo "$(printf '%-15s: %s' "$(msg log_file)" "$file")"
+  echo "$(printf '%-15s: %s' "$(msg lines)" "$lines")"
   tail -n "$lines" "$file"
 }
 
@@ -308,14 +549,14 @@ restart_nginx() {
   nginx -t
   if command -v systemctl >/dev/null 2>&1; then
     if systemctl restart nginx; then
-      echo "restart         : systemctl ok"
+      echo "$(printf '%-15s: %s' "$(msg restart_systemctl)" "$(msg restart_ok)")"
     else
       nginx -s reload
-      echo "restart         : reload ok"
+      echo "$(printf '%-15s: %s' "$(msg restart_reload)" "$(msg reload_ok)")"
     fi
   else
     nginx -s reload
-    echo "restart         : reload ok"
+    echo "$(printf '%-15s: %s' "$(msg restart_reload)" "$(msg reload_ok)")"
   fi
   sleep 1
   show_status
@@ -327,7 +568,7 @@ rotate_passwd() {
 
   local user input_user password password2 backup hash code current_user
   [[ $# -le 2 ]] || {
-    echo "use: tfw passwd [user] [password]" >&2
+    echo "$(msg passwd_usage)" >&2
     exit 1
   }
 
@@ -338,18 +579,18 @@ rotate_passwd() {
 
   if [[ -t 0 ]]; then
     if [[ $# -eq 0 ]]; then
-      read -r -p "user [${user}]: " input_user
+      read -r -p "$(msg passwd_user_prompt) [${user}]: " input_user
       user="${input_user:-$user}"
     fi
 
     if [[ $# -lt 2 ]]; then
-      read -r -s -p "new password (empty = random): " password
+      read -r -s -p "$(msg passwd_new_prompt): " password
       printf '\n'
       if [[ -n "${password:-}" ]]; then
-        read -r -s -p "confirm: " password2
+        read -r -s -p "$(msg passwd_confirm): " password2
         printf '\n'
         [[ "$password" == "$password2" ]] || {
-          echo "password mismatch" >&2
+          echo "$(msg passwd_mismatch)" >&2
           exit 1
         }
       fi
@@ -379,47 +620,70 @@ rotate_passwd() {
     else
       rm -f "$AUTH_FILE"
     fi
-    echo "password verify failed: auth file format invalid, rolled back" >&2
+    echo "$(msg passwd_verify_fail)" >&2
     exit 1
   fi
 
   code="$(http_code "$url_upload" "${user}:${password}")"
 
-  echo "user            : $user"
+  echo "$(printf '%-15s: %s' "$(msg auth_user)" "$user")"
   echo "password        : $password"
-  echo "backup          : ${backup:-not created}"
-  echo "local verify    : ok"
-  echo "remote verify   : $code"
+  echo "$(printf '%-15s: %s' "$(msg backup)" "${backup:-$(msg none)}")"
+  echo "$(printf '%-15s: %s' "$(msg local_verify)" "$(msg ok_file)")"
+  echo "$(printf '%-15s: %s' "$(msg remote_verify)" "$code")"
 }
 
 show_cert() {
-  echo "site mode       : $SITE_MODE"
-  echo "acme enabled    : $INSTALL_ACME"
+  local acme_enabled_text
   if [[ "$INSTALL_ACME" == "1" ]]; then
-    echo "acme bin        : $ACME_BIN ($(path_state "$ACME_BIN"))"
-    echo "acme home       : $ACME_HOME ($(path_state "$ACME_HOME"))"
+    acme_enabled_text="$(msg enabled_yes)"
+  else
+    acme_enabled_text="$(msg enabled_no)"
   fi
-  echo "cert file       : $CERT_FILE ($(path_state "$CERT_FILE"))"
-  echo "key file        : $KEY_FILE ($(path_state "$KEY_FILE"))"
+
+  echo "$(printf '%-15s: %s' "$(msg site_mode)" "$SITE_MODE")"
+  echo "$(printf '%-15s: %s' "$(msg acme_enabled)" "$acme_enabled_text")"
+  if [[ "$INSTALL_ACME" == "1" ]]; then
+    echo "$(printf '%-15s: %s (%s)' "$(msg acme_bin)" "$ACME_BIN" "$(path_state "$ACME_BIN")")"
+    echo "$(printf '%-15s: %s (%s)' "$(msg acme_home)" "$ACME_HOME" "$(path_state "$ACME_HOME")")"
+  fi
+  echo "$(printf '%-15s: %s (%s)' "$(msg cert_file)" "$CERT_FILE" "$(path_state "$CERT_FILE")")"
+  echo "$(printf '%-15s: %s (%s)' "$(msg key_file)" "$KEY_FILE" "$(path_state "$KEY_FILE")")"
 }
 
 usage() {
-  cat <<'EOF'
-tfw time                         show host time
-tfw info                         show config paths and local files
-tfw urls                         show public URLs
-tfw cert                         show certificate paths
-tfw status                       run nginx and HTTP checks
-tfw test                         run nginx -t
-tfw ls [root|uploads|/path]      list files in a directory
-tfw logs [access|error] [lines]  tail nginx logs
-tfw restart                      test and restart/reload nginx
-tfw passwd [user] [password]     rotate upload auth password
+  local help_text
+  help_text="$(cat <<'EOF'
+tfw time                         __HELP_TIME__
+tfw info                         __HELP_INFO__
+tfw urls                         __HELP_URLS__
+tfw cert                         __HELP_CERT__
+tfw status                       __HELP_STATUS__
+tfw test                         __HELP_TEST__
+tfw ls [root|uploads|/path]      __HELP_LS__
+tfw logs [access|error] [lines]  __HELP_LOGS__
+tfw restart                      __HELP_RESTART__
+tfw passwd [user] [password]     __HELP_PASSWD__
 
-Config source:
-  default runtime config: /etc/tfw/tfw.conf
-  override with: TFW_CONFIG=/path/to/tfw.conf tfw info
+__HELP_CONFIG__:
+  __HELP_DEFAULT_CONFIG__: /etc/tfw/tfw.conf
+  __HELP_OVERRIDE__: TFW_CONFIG=/path/to/tfw.conf tfw info
 EOF
+)"
+  printf '%s\n' "$help_text" | sed \
+    -e "s|__HELP_TIME__|$(msg help_time)|g" \
+    -e "s|__HELP_INFO__|$(msg help_info)|g" \
+    -e "s|__HELP_URLS__|$(msg help_urls)|g" \
+    -e "s|__HELP_CERT__|$(msg help_cert)|g" \
+    -e "s|__HELP_STATUS__|$(msg help_status)|g" \
+    -e "s|__HELP_TEST__|$(msg help_test)|g" \
+    -e "s|__HELP_LS__|$(msg help_ls)|g" \
+    -e "s|__HELP_LOGS__|$(msg help_logs)|g" \
+    -e "s|__HELP_RESTART__|$(msg help_restart)|g" \
+    -e "s|__HELP_PASSWD__|$(msg help_passwd)|g" \
+    -e "s|__HELP_CONFIG__|$(msg help_config)|g" \
+    -e "s|__HELP_DEFAULT_CONFIG__|$(msg help_default_config)|g" \
+    -e "s|__HELP_OVERRIDE__|$(msg help_override)|g"
 }
 
 case "${1:-}" in
@@ -460,7 +724,7 @@ case "${1:-}" in
     usage
     ;;
   *)
-    echo "unknown command: $1" >&2
+    echo "$(msg unknown_command "$1")" >&2
     usage
     exit 1
     ;;

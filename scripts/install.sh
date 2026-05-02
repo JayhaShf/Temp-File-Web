@@ -36,6 +36,7 @@ ACME_WEBROOT="${ACME_WEBROOT:-}"
 ACME_EMAIL="${ACME_EMAIL:-}"
 AUTH_USER="${AUTH_USER:-}"
 AUTH_PASSWORD="${AUTH_PASSWORD:-}"
+AUTH_SESSION_TOKEN="${AUTH_SESSION_TOKEN:-}"
 MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-}"
 IP="${IP:-127.0.0.1}"
 HTTP_PORT="${HTTP_PORT:-}"
@@ -453,9 +454,10 @@ apply_defaults() {
     ACME_EMAIL="admin@$DOMAIN"
   fi
   AUTH_USER="${AUTH_USER:-uploader}"
+  AUTH_SESSION_TOKEN="${AUTH_SESSION_TOKEN:-$(random_session_token)}"
   MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-2g}"
-  CONF_FILE="${CONF_FILE:-$CONF_DIR/tfw-$SITE_ID.conf}"
-  ACME_CONF_FILE="${ACME_CONF_FILE:-$CONF_DIR/tfw-$SITE_ID-acme.conf}"
+  CONF_FILE="${CONF_FILE:-$CONF_DIR/temp-file-web.conf}"
+  ACME_CONF_FILE="${ACME_CONF_FILE:-$CONF_DIR/temp-file-web-acme.conf}"
   ACCESS_LOG="/var/log/nginx/$SITE_ID.access.log"
   ERROR_LOG="/var/log/nginx/$SITE_ID.error.log"
 }
@@ -465,8 +467,8 @@ restore_runtime_derived_values() {
   SITE_ID="${SITE_ID:-$(default_site_id)}"
   HTTP_PORT="${HTTP_PORT:-80}"
   HTTPS_PORT="${HTTPS_PORT:-443}"
-  CONF_FILE="${CONF_FILE:-$CONF_DIR/tfw-$SITE_ID.conf}"
-  ACME_CONF_FILE="${ACME_CONF_FILE:-$CONF_DIR/tfw-$SITE_ID-acme.conf}"
+  CONF_FILE="${CONF_FILE:-$CONF_DIR/temp-file-web.conf}"
+  ACME_CONF_FILE="${ACME_CONF_FILE:-$CONF_DIR/temp-file-web-acme.conf}"
   UPLOAD_DIR="${UPLOAD_DIR:-$DATA_DIR/uploads}"
   SITE_DIR="${SITE_DIR:-$SITE_BASE_DIR/$SITE_ID}"
   ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/$SITE_ID.access.log}"
@@ -659,6 +661,10 @@ random_password() {
   openssl rand -base64 18 | tr -d '=+/\n' | cut -c1-20
 }
 
+random_session_token() {
+  openssl rand -hex 24
+}
+
 set_auth_file_permissions() {
   local owner_group
 
@@ -689,6 +695,9 @@ render_template() {
     -e "s|\${CONF}|$(sed_escape "$CONF_FILE")|g" \
     -e "s|\${SITE_DIR}|$(sed_escape "$SITE_DIR")|g" \
     -e "s|\${AUTH_FILE}|$(sed_escape "$SITE_DIR/file-upload.htpasswd")|g" \
+    -e "s|\${AUTH_SESSION_TOKEN}|$(sed_escape "$AUTH_SESSION_TOKEN")|g" \
+    -e "s|\${AUTH_COOKIE_NAME}|tfw_upload_auth|g" \
+    -e "s|\${AUTH_COOKIE_FLAGS}|$(sed_escape "$(build_auth_cookie_flags)")|g" \
     -e "s|\${DATA_DIR}|$(sed_escape "$DATA_DIR")|g" \
     -e "s|\${UPLOAD_DIR}|$(sed_escape "$UPLOAD_DIR")|g" \
     -e "s|\${BROWSER_HTML}|$(sed_escape "$SITE_DIR/file-browser.html")|g" \
@@ -729,6 +738,23 @@ build_access_base() {
   fi
 
   printf '%s://%s' "$scheme" "$authority"
+}
+
+build_auth_cookie_flags() {
+  local flags
+  flags="Path=/; HttpOnly; SameSite=Strict"
+  if [[ "$SITE_MODE" == "https" ]]; then
+    flags="${flags}; Secure"
+  fi
+  printf '%s' "$flags"
+}
+
+current_access_port() {
+  if [[ "$SITE_MODE" == "https" ]]; then
+    printf '%s\n' "$HTTPS_PORT"
+  else
+    printf '%s\n' "$HTTP_PORT"
+  fi
 }
 
 render_nginx_template() {
@@ -781,6 +807,7 @@ fill_page_i18n() {
       -e "s|\${AUTH_USER_LABEL}|用户名|g" \
       -e "s|\${AUTH_PASSWORD_LABEL}|密码|g" \
       -e "s|\${AUTH_SUBMIT}|登录并进入上传|g" \
+      -e "s|\${AUTH_LOGOUT}|退出登录|g" \
       -e "s|\${AUTH_OK}|已登录|g" \
       -e "s|\${AUTH_HINT}|登录后可继续保持当前页面风格进行上传。认证信息仅用于当前页面会话。|g" \
       -e "s|\${JS_UNKNOWN_SIZE}|$(js_string "未知大小")|g" \
@@ -848,6 +875,7 @@ fill_page_i18n() {
       -e "s|\${AUTH_USER_LABEL}|Username|g" \
       -e "s|\${AUTH_PASSWORD_LABEL}|Password|g" \
       -e "s|\${AUTH_SUBMIT}|Sign in to upload|g" \
+      -e "s|\${AUTH_LOGOUT}|Sign out|g" \
       -e "s|\${AUTH_OK}|Signed in|g" \
       -e "s|\${AUTH_HINT}|After sign-in, the page keeps the same interface style and continues directly into upload mode.|g" \
       -e "s|\${JS_UNKNOWN_SIZE}|$(js_string "Unknown size")|g" \
@@ -1202,12 +1230,20 @@ main() {
     reload_nginx_if_present || true
     echo "$(msg tls_missing)"
     echo "$(msg http_ready)"
+    echo "site mode       : $SITE_MODE"
+    echo "access host     : $ACCESS_HOST"
+    echo "access port     : $(current_access_port)"
+    echo "upload user     : $AUTH_USER"
+    echo "upload password : $AUTH_PASSWORD"
     echo "expected cert dir: $SITE_DIR/certs/"
     echo "$(msg tls_next)"
     exit 0
   fi
 
   echo "$(msg done)"
+  echo "site mode       : $SITE_MODE"
+  echo "access host     : $ACCESS_HOST"
+  echo "access port     : $(current_access_port)"
   echo "tfw config      : $TFW_CONFIG_FILE"
   echo "site config     : $CONF_FILE"
   echo "cert file       : $SITE_DIR/certs/fullchain.cer"

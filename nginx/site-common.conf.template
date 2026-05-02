@@ -46,9 +46,31 @@
     }
 
     location = /_auth_upload {
-        internal;
         auth_basic "file-upload";
         auth_basic_user_file ${AUTH_FILE};
+        add_header Cache-Control "no-store" always;
+        return 204;
+    }
+
+    location = /_session_login {
+        auth_basic "file-upload";
+        auth_basic_user_file ${AUTH_FILE};
+        add_header Set-Cookie "${AUTH_COOKIE_NAME}=${AUTH_SESSION_TOKEN}; ${AUTH_COOKIE_FLAGS}" always;
+        add_header Cache-Control "no-store" always;
+        return 204;
+    }
+
+    location = /_session_status {
+        add_header Cache-Control "no-store" always;
+        if ($cookie_${AUTH_COOKIE_NAME} = "${AUTH_SESSION_TOKEN}") {
+            return 204;
+        }
+        return 401;
+    }
+
+    location = /_session_logout {
+        add_header Set-Cookie "${AUTH_COOKIE_NAME}=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict" always;
+        add_header Cache-Control "no-store" always;
         return 204;
     }
 
@@ -88,7 +110,7 @@
         create_full_put_path off;
         dav_access user:rw group:r all:r;
 
-        limit_except GET HEAD OPTIONS {
+        if ($cookie_${AUTH_COOKIE_NAME} != "${AUTH_SESSION_TOKEN}") {
             auth_basic "file-upload";
             auth_basic_user_file ${AUTH_FILE};
         }

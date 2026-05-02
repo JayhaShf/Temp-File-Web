@@ -104,16 +104,16 @@ web/        页面模板
 
 - 站点运行配置：`/etc/tfw/tfw.conf`
 - `tfw` 命令：`/usr/local/bin/tfw`
-- Nginx 站点配置：`/etc/nginx/conf.d/tfw-<domain>.conf`
-- ACME challenge 临时配置：`/etc/nginx/conf.d/tfw-<domain>-acme.conf`（仅启用 ACME 且尚未切到正式 HTTPS 时）
-- 站点资源目录：`/etc/tfw/sites/<domain>/`
-- 认证文件：`/etc/tfw/sites/<domain>/file-upload.htpasswd`
+- Nginx 站点配置：`/etc/nginx/conf.d/temp-file-web.conf`
+- ACME challenge 临时配置：`/etc/nginx/conf.d/temp-file-web-acme.conf`（仅启用 ACME 且尚未切到正式 HTTPS 时）
+- 站点资源目录：`/etc/tfw/sites/<site_id>/`
+- 认证文件：`/etc/tfw/sites/<site_id>/file-upload.htpasswd`
 - 页面文件：
-  - `/etc/tfw/sites/<domain>/file-browser.html`
-  - `/etc/tfw/sites/<domain>/file-upload.html`
+  - `/etc/tfw/sites/<site_id>/file-browser.html`
+  - `/etc/tfw/sites/<site_id>/file-upload.html`
 - 证书文件：
-  - `/etc/tfw/sites/<domain>/certs/fullchain.cer`
-  - `/etc/tfw/sites/<domain>/certs/<domain>.key`
+  - `/etc/tfw/sites/<site_id>/certs/fullchain.cer`
+  - `/etc/tfw/sites/<site_id>/certs/<site_id>.key`
 - 数据目录：`/srv/tfw/data`
 - 上传目录：`/srv/tfw/data/uploads`
 - ACME webroot：`/var/www/_acme-challenge`
@@ -335,7 +335,7 @@ UNINSTALL_KEEP_DATA=0 UNINSTALL_KEEP_CERTS=0 bash scripts/install.sh uninstall
 如果你暂时不想签证书，可以跳过：
 
 ```bash
-INSTALL_ACME=0 DOMAIN=files.example.com bash scripts/install.sh
+INSTALL_ACME=0 ACCESS_HOST=192.0.2.10 HTTP_PORT=8080 bash scripts/install.sh
 ```
 
 这种情况下安装器会直接写入可用的 HTTP 站点配置。你需要后续自己把证书文件放到站点 `certs` 目录，再重新执行安装或升级，切换到 HTTPS。
@@ -398,8 +398,8 @@ TFW_CONFIG=/path/to/tfw.conf tfw info
 
 这个项目现在适合复制到其他设备直接部署，但请注意：
 
-1. 目标机器必须已经完成域名解析。
-2. 80/443 端口必须可达。
+1. 如果你要启用 ACME，目标机器必须已经完成域名解析。
+2. 你选择的 HTTP/HTTPS 端口必须可达。
 3. Nginx 需要可正常启动。
 4. 若要自动申请证书，`acme.sh` 必须能通过 HTTP challenge 验证域名。
 
@@ -408,14 +408,14 @@ TFW_CONFIG=/path/to/tfw.conf tfw info
 1. 把仓库复制到目标机器
 2. 执行 `bash scripts/install.sh`
 3. 选择语言和安装模式
-4. 输入目标域名
+4. 输入目标访问主机、端口，以及可选域名
 5. 等待配置、证书、页面和认证文件全部生成
 6. 使用 `tfw info` 和 `tfw status` 验证
 
 ## 注意事项
 
 - 当前安装器默认面向单站点安装。
-- 如果一台机器上部署多个站点，建议为每个域名单独跑一套目录与配置。
+- 如果一台机器上部署多个站点，建议为每个站点单独规划 `SITE_ID`、资源目录和端口。
 - `tfw` 读取的是本机安装后的运行配置，不再依赖仓库里的硬编码值。
 - 如果你要定制首页文案或 UI，建议修改模板文件而不是改安装后产物。
 - [nginx-main.conf.template](/root/Temp-File-Web/templates/nginx-main.conf.template) 只是参考模板，安装器不会默认覆盖系统主配置。

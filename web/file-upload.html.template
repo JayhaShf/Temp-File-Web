@@ -318,6 +318,7 @@
         <label class="pick" for="files">${UPLOAD_PICK}</label>
         <button id="start" disabled>${UPLOAD_START}</button>
         <a class="link" href="/uploads/">${UPLOAD_OPEN_DIR}</a>
+        <button id="logout" type="button">${AUTH_LOGOUT}</button>
       </div>
       <p class="hint">${UPLOAD_HINT}</p>
       <input id="files" type="file" multiple>
@@ -351,14 +352,10 @@
     const authOk = document.getElementById("auth-ok");
     const filesInput = document.getElementById("files");
     const startButton = document.getElementById("start");
+    const logoutButton = document.getElementById("logout");
     const queue = document.getElementById("queue");
 
     let files = [];
-    let authHeader = "";
-
-    function encodeBasicAuth(username, password) {
-      return `Basic ${btoa(`${username}:${password}`)}`;
-    }
 
     function showAuthError(message) {
       authError.hidden = false;
@@ -370,6 +367,22 @@
       authError.hidden = true;
       authError.textContent = "";
       authOk.hidden = true;
+    }
+
+    function setAuthenticatedState() {
+      authPanel.hidden = true;
+      uploadPanel.hidden = false;
+      authOk.hidden = false;
+    }
+
+    function clearAuthenticatedState() {
+      uploadPanel.hidden = true;
+      authPanel.hidden = false;
+      clearAuthState();
+      files = [];
+      queue.innerHTML = "";
+      filesInput.value = "";
+      startButton.disabled = true;
     }
 
     async function verifyLogin() {
@@ -386,19 +399,15 @@
       authSubmit.textContent = I18N.authChecking;
 
       try {
-        const header = encodeBasicAuth(username, password);
-        const response = await fetch("/_auth_upload", {
+        const response = await fetch("/_session_login", {
           cache: "no-store",
           headers: {
-            Authorization: header
+            Authorization: `Basic ${btoa(`${username}:${password}`)}`
           }
         });
 
         if (response.status === 204) {
-          authHeader = header;
-          authPanel.hidden = true;
-          uploadPanel.hidden = false;
-          authOk.hidden = false;
+          setAuthenticatedState();
           authSubmit.textContent = "${AUTH_SUBMIT}";
           authSubmit.disabled = false;
           return;
@@ -464,7 +473,6 @@
         const target = `/uploads/${encodeURIComponent(file.name)}`;
         xhr.open("PUT", target);
         xhr.responseType = "text";
-        xhr.setRequestHeader("Authorization", authHeader);
 
         xhr.upload.addEventListener("progress", (event) => {
           if (!event.lengthComputable) {
@@ -509,6 +517,14 @@
       renderQueue();
     });
 
+    logoutButton.addEventListener("click", async () => {
+      try {
+        await fetch("/_session_logout", { cache: "no-store" });
+      } catch (error) {
+      }
+      clearAuthenticatedState();
+    });
+
     startButton.addEventListener("click", async () => {
       startButton.disabled = true;
       for (const file of files) {
@@ -516,6 +532,11 @@
           setStatus(file, I18N.preparing);
           await uploadFile(file);
         } catch (error) {
+          if (String(error.message).includes("401")) {
+            clearAuthenticatedState();
+            showAuthError(I18N.authFailed);
+            return;
+          }
           setStatus(file, `${I18N.failed}: ${error.message}`, "err");
         }
       }
@@ -524,6 +545,20 @@
         files = [];
       }
     });
+
+    (async () => {
+      try {
+        const response = await fetch("/_session_status", { cache: "no-store" });
+
+        if (response.status === 204) {
+          setAuthenticatedState();
+        } else {
+          clearAuthenticatedState();
+        }
+      } catch (error) {
+        clearAuthenticatedState();
+      }
+    })();
   </script>
 </body>
 </html>
