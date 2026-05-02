@@ -34,6 +34,7 @@ KEY_FILE="${KEY_FILE:-$SITE_DIR/certs/$SITE_ID.key}"
 MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-2g}"
 ACME_HOME="${ACME_HOME:-/root/.acme.sh}"
 ACME_BIN="${ACME_BIN:-$ACME_HOME/acme.sh}"
+TFW_USER="${TFW_USER:-www-data}"
 
 url_scheme="https"
 url_port="$HTTPS_PORT"
@@ -78,6 +79,18 @@ need_root() {
 auth_user() {
   if [[ -f "$AUTH_FILE" ]]; then
     awk -F: 'NR==1{print $1; exit}' "$AUTH_FILE"
+  fi
+}
+
+set_auth_file_permissions() {
+  local owner_group
+
+  chmod 0640 "$AUTH_FILE"
+  if id -u "$TFW_USER" >/dev/null 2>&1; then
+    owner_group="$(id -gn "$TFW_USER")"
+    chown root:"$owner_group" "$AUTH_FILE"
+  else
+    chown root:root "$AUTH_FILE"
   fi
 }
 
@@ -358,6 +371,7 @@ rotate_passwd() {
   hash="$(openssl passwd -apr1 "$password")"
   umask 077
   printf '%s:%s\n' "$user" "$hash" > "$AUTH_FILE"
+  set_auth_file_permissions
 
   if ! awk -F: 'NR==1 && NF>=2 && $1 != "" {ok=1} END {exit ok ? 0 : 1}' "$AUTH_FILE"; then
     if [[ -n "$backup" ]]; then
