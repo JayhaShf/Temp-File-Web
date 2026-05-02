@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>file.jayha.top 文件列表</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --card: rgba(255, 252, 247, 0.92);
+      --text: #1f1a16;
+      --muted: #6d6258;
+      --line: rgba(86, 72, 58, 0.18);
+      --accent: #b34d22;
+      --accent-strong: #8f3611;
+      --accent-soft: rgba(179, 77, 34, 0.12);
+      --ok: #226f54;
+      --shadow: rgba(73, 53, 39, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(179, 77, 34, 0.16), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(34, 111, 84, 0.16), transparent 28%),
+        linear-gradient(135deg, #f6f0e8, #efe6d7 46%, #f8f4ed);
+      padding: 24px;
+    }
+
+    main {
+      width: min(1080px, 100%);
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: 0 24px 80px var(--shadow);
+      overflow: hidden;
+      backdrop-filter: blur(10px);
+    }
+
+    .hero {
+      padding: 32px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(135deg, rgba(179, 77, 34, 0.08), rgba(255, 255, 255, 0));
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      color: var(--accent-strong);
+      background: var(--accent-soft);
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(30px, 4vw, 42px);
+      line-height: 1.05;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .nav {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    a.nav-link,
+    a.action-link {
+      appearance: none;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font: inherit;
+      text-decoration: none;
+      padding: 12px 18px;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.72);
+      transition: transform 140ms ease, background 140ms ease;
+    }
+
+    a.nav-link:hover,
+    a.action-link:hover {
+      transform: translateY(-1px);
+    }
+
+    .panel {
+      padding: 28px 32px 32px;
+    }
+
+    .toolbar {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      margin-bottom: 20px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field label {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .field input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px 16px;
+      font: inherit;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.84);
+      outline: none;
+    }
+
+    .field input:focus {
+      border-color: rgba(179, 77, 34, 0.48);
+      box-shadow: 0 0 0 4px rgba(179, 77, 34, 0.08);
+    }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .chip {
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      padding: 10px 14px;
+      color: var(--muted);
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 14px;
+    }
+
+    .item {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      background: rgba(255, 255, 255, 0.76);
+      display: grid;
+      gap: 14px;
+      animation: rise 220ms ease both;
+    }
+
+    .item-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .title-wrap {
+      min-width: 0;
+    }
+
+    .type {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--accent-strong);
+      background: var(--accent-soft);
+      margin-bottom: 10px;
+    }
+
+    .type.dir {
+      color: var(--ok);
+      background: rgba(34, 111, 84, 0.12);
+    }
+
+    .name {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.25;
+      word-break: break-all;
+    }
+
+    .name a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .name a:hover {
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+    }
+
+    .meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(109, 98, 88, 0.36);
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    .action-link.primary {
+      color: #fff7f1;
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      box-shadow: 0 10px 30px rgba(179, 77, 34, 0.18);
+    }
+
+    .state {
+      padding: 22px 20px;
+      border-radius: 18px;
+      border: 1px dashed var(--line);
+      background: rgba(255, 255, 255, 0.48);
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 820px) {
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .stats {
+        justify-content: flex-start;
+      }
+
+      .item-head {
+        flex-direction: column;
+      }
+
+      .actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="eyebrow" id="eyebrow">文件目录</div>
+      <h1 id="title">文件列表</h1>
+      <p id="subtitle">正在读取当前目录。</p>
+      <div class="nav">
+        <a class="nav-link" href="/">根目录</a>
+        <a class="nav-link" href="/uploads/">上传目录</a>
+        <a class="nav-link" href="/upload">上传文件</a>
+        <a class="nav-link" id="parent-link" href="/" hidden>上一级</a>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="toolbar">
+        <div class="field">
+          <label for="filter">筛选文件名</label>
+          <input id="filter" type="search" placeholder="输入关键字，按名称过滤">
+        </div>
+        <div class="stats">
+          <div class="chip" id="count-chip">0 个项目</div>
+          <div class="chip" id="path-chip">/</div>
+        </div>
+      </div>
+      <div class="state" id="state">正在加载目录数据…</div>
+      <ul class="list" id="list" hidden></ul>
+    </section>
+  </main>
+
+  <script>
+    const title = document.getElementById("title");
+    const subtitle = document.getElementById("subtitle");
+    const eyebrow = document.getElementById("eyebrow");
+    const filterInput = document.getElementById("filter");
+    const countChip = document.getElementById("count-chip");
+    const pathChip = document.getElementById("path-chip");
+    const parentLink = document.getElementById("parent-link");
+    const state = document.getElementById("state");
+    const list = document.getElementById("list");
+
+    const currentPath = location.pathname.endsWith("/") ? location.pathname : `${location.pathname}/`;
+    const dataUrl = `/_listing${currentPath}`;
+    let items = [];
+
+    function formatBytes(bytes) {
+      if (typeof bytes !== "number" || Number.isNaN(bytes)) {
+        return "未知大小";
+      }
+
+      const units = ["B", "KB", "MB", "GB", "TB"];
+      let value = bytes;
+      let index = 0;
+
+      while (value >= 1024 && index < units.length - 1) {
+        value /= 1024;
+        index += 1;
+      }
+
+      return `${value.toFixed(value >= 100 || index === 0 ? 0 : 1)} ${units[index]}`;
+    }
+
+    function formatTime(value) {
+      if (!value) {
+        return "未知时间";
+      }
+
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return String(value);
+      }
+
+      return new Intl.DateTimeFormat("zh-CN", {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }).format(date);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function joinPath(basePath, name, isDirectory) {
+      const cleanBase = basePath.endsWith("/") ? basePath : `${basePath}/`;
+      const encoded = encodeURIComponent(name).replaceAll("%2F", "/");
+      return `${cleanBase}${encoded}${isDirectory ? "/" : ""}`;
+    }
+
+    function updateHeader() {
+      const label = currentPath === "/" ? "根目录" : currentPath;
+      eyebrow.textContent = currentPath === "/" ? "公开文件目录" : "公开子目录";
+      title.textContent = currentPath === "/" ? "文件列表" : `目录 ${currentPath}`;
+      subtitle.textContent = "页面样式已统一，文件仍然保持原来的公开直链访问方式。";
+      pathChip.textContent = label;
+      document.title = `${label} | file.jayha.top`;
+
+      if (currentPath === "/") {
+        parentLink.hidden = true;
+        parentLink.href = "/";
+      } else {
+        const trimmed = currentPath.endsWith("/") ? currentPath.slice(0, -1) : currentPath;
+        const lastSlashIndex = trimmed.lastIndexOf("/");
+        const parentPath = lastSlashIndex <= 0 ? "/" : `${trimmed.slice(0, lastSlashIndex)}/`;
+        parentLink.hidden = false;
+        parentLink.href = parentPath;
+      }
+    }
+
+    function setState(message) {
+      state.hidden = false;
+      state.textContent = message;
+      list.hidden = true;
+    }
+
+    function renderList() {
+      const keyword = filterInput.value.trim().toLowerCase();
+      const filtered = items.filter((item) => item.name.toLowerCase().includes(keyword));
+      countChip.textContent = `${filtered.length} 个项目`;
+
+      if (filtered.length === 0) {
+        setState(keyword ? "没有匹配这个关键字的文件。" : "当前目录还没有文件。");
+        return;
+      }
+
+      state.hidden = true;
+      list.hidden = false;
+      list.innerHTML = filtered.map((item, index) => {
+        const isDirectory = item.type === "directory";
+        const href = joinPath(currentPath, item.name, isDirectory);
+        const primaryLabel = isDirectory ? "进入目录" : "打开文件";
+        const secondaryLabel = isDirectory ? "复制路径" : "下载";
+        const secondaryAttrs = isDirectory
+          ? `data-copy="${escapeHtml(location.origin + href)}"`
+          : `href="${escapeHtml(href)}" download`;
+        const sizeText = isDirectory ? "目录" : formatBytes(item.size);
+        const timeText = formatTime(item.mtime);
+
+        return `
+          <li class="item" style="animation-delay:${index * 28}ms">
+            <div class="item-head">
+              <div class="title-wrap">
+                <div class="type ${isDirectory ? "dir" : "file"}">${isDirectory ? "DIR" : "FILE"}</div>
+                <h2 class="name"><a href="${escapeHtml(href)}">${escapeHtml(item.name)}${isDirectory ? "/" : ""}</a></h2>
+                <div class="meta">
+                  <span>${sizeText}</span>
+                  <span class="dot"></span>
+                  <span>${timeText}</span>
+                </div>
+              </div>
+              <div class="actions">
+                <a class="action-link primary" href="${escapeHtml(href)}">${primaryLabel}</a>
+                ${isDirectory
+                  ? `<a class="action-link" href="#" ${secondaryAttrs}>${secondaryLabel}</a>`
+                  : `<a class="action-link" ${secondaryAttrs}>${secondaryLabel}</a>`}
+              </div>
+            </div>
+          </li>
+        `;
+      }).join("");
+
+      list.querySelectorAll("[data-copy]").forEach((link) => {
+        link.addEventListener("click", async (event) => {
+          event.preventDefault();
+          const value = link.getAttribute("data-copy");
+          try {
+            await navigator.clipboard.writeText(value);
+            link.textContent = "已复制";
+            window.setTimeout(() => {
+              link.textContent = "复制路径";
+            }, 1200);
+          } catch (error) {
+            link.textContent = "复制失败";
+          }
+        });
+      });
+    }
+
+    async function loadItems() {
+      updateHeader();
+      setState("正在加载目录数据…");
+
+      try {
+        const response = await fetch(dataUrl, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        items = (Array.isArray(payload) ? payload : [])
+          .filter((item) => item && typeof item.name === "string" && item.name !== "." && item.name !== "..")
+          .sort((left, right) => {
+            if (left.type === right.type) {
+              return left.name.localeCompare(right.name, "zh-CN", { numeric: true, sensitivity: "base" });
+            }
+            return left.type === "directory" ? -1 : 1;
+          });
+
+        renderList();
+      } catch (error) {
+        setState(`目录读取失败：${error.message}`);
+      }
+    }
+
+    filterInput.addEventListener("input", renderList);
+    loadItems();
+  </script>
+</body>
+</html>

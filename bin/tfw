@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+DOMAIN="${DOMAIN:-file.jayha.top}"
+IP="${IP:-127.0.0.1}"
+CONF="${CONF:-/etc/nginx/conf.d/file.conf}"
+AUTH_FILE="${AUTH_FILE:-/etc/nginx/jayha.top/file-upload.htpasswd}"
+DATA_DIR="${DATA_DIR:-/var/www/files}"
+UPLOAD_DIR="${UPLOAD_DIR:-/var/www/files/uploads}"
+
+url_root="https://${DOMAIN}/"
+url_upload="https://${DOMAIN}/upload"
+url_uploads="https://${DOMAIN}/uploads/"
+url_listing="https://${DOMAIN}/_listing/"
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "missing command: $1" >&2
+    exit 1
+  }
+}
+
+need_root() {
+  [[ "$(id -u)" -eq 0 ]] || {
+    echo "need root" >&2
+    exit 1
+  }
+}
+
+auth_user() {
+  [[ -f "$AUTH_FILE" ]] && awk -F: 'NR==1{print $1}' "$AUTH_FILE"
+}
+
+http_code() {
+  local url="$1"
+  local auth="${2:-}"
+  if [[ -n "$auth" ]]; then
+    curl -sk -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:443:${IP}" -u "$auth" "$url" 2>/dev/null || echo ERR
+  else
+    curl -sk -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:443:${IP}" "$url" 2>/dev/null || echo ERR
+  fi
+}
+
+show_time() {
+  echo "local : $(date '+%Y-%m-%d %H:%M:%S %Z (%z)')"
+  echo "utc   : $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+  echo "host  : $(hostname)"
+}
+
+show_status() {
+  need nginx
+  need curl
+
+  local listing_payload listing_count
+  listing_payload="$(curl -sk --resolve "${DOMAIN}:443:${IP}" "$url_listing" 2>/dev/null || true)"
+  listing_count="$(printf '%s' "$listing_payload" | grep -o '"name":"' | wc -l | awk '{print $1}')"
+
+  echo "time            : $(date '+%Y-%m-%d %H:%M:%S %Z (%z)')"
+  echo "domain          : $DOMAIN"
+  echo "resolve ip      : $IP"
+  echo "config          : $CONF"
+  nginx -t >/dev/null 2>&1 && echo "nginx test      : ok" || echo "nginx test      : fail"
+  pgrep -x nginx >/dev/null 2>&1 && echo "nginx process   : ok ($(pgrep -xc nginx))" || echo "nginx process   : fail"
+  echo "auth user       : $(auth_user)"
+  echo "root items      : $(find "$DATA_DIR" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | awk '{print $1}')"
+  echo "upload files    : $(find "$UPLOAD_DIR" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l | awk '{print $1}')"
+  echo "upload size     : $(du -sh "$UPLOAD_DIR" 2>/dev/null | awk '{print $1}')"
+  echo "root page       : $(http_code "$url_root")"
+  echo "uploads page    : $(http_code "$url_uploads")"
+  echo "listing json    : $(http_code "$url_listing")"
+  echo "upload page     : $(http_code "$url_upload") (expect 401)"
+  echo "listing count   : ${listing_count:-0}"
+}
+
+restart_nginx() {
+  need_root
+  need nginx
+
+  nginx -t
+  if command -v systemctl >/dev/null 2>&1; then
+    if systemctl restart nginx; then
+      echo "restart         : systemctl ok"
+    else
+      nginx -s reload
+      echo "restart         : reload ok"
+    fi
+  else
+    nginx -s reload
+    echo "restart         : reload ok"
+  fi
+  sleep 1
+  show_status
+}
+
+rotate_passwd() {
+  need_root
+  need openssl
+  need curl
+
+  local user input_user password password2 backup hash code
+  user="$(auth_user)"
+  user="${user:-uploader}"
+
+  if [[ -t 0 ]]; then
+    read -r -p "user [${user}]: " input_user
+    user="${input_user:-$user}"
+    read -r -s -p "new password (empty = random): " password
+    printf '\n'
+    if [[ -n "${password:-}" ]]; then
+      read -r -s -p "confirm: " password2
+      printf '\n'
+      [[ "$password" == "$password2" ]] || {
+        echo "password mismatch" >&2
+        exit 1
+      }
+    fi
+  fi
+
+  if [[ -z "${password:-}" ]]; then
+    password="$(openssl rand -base64 18 | tr -d '=+/\n' | cut -c1-20)"
+  fi
+
+  backup="${AUTH_FILE}.bak-$(date +%Y%m%d%H%M%S)"
+  cp "$AUTH_FILE" "$backup"
+  hash="$(openssl passwd -apr1 "$password")"
+  printf '%s:%s\n' "$user" "$hash" > "$AUTH_FILE"
+
+  code="$(http_code "$url_upload" "${user}:${password}")"
+  if [[ "$code" != "200" ]]; then
+    cp "$backup" "$AUTH_FILE"
+    echo "password verify failed: $code, rolled back" >&2
+    exit 1
+  fi
+
+  echo "user            : $user"
+  echo "password        : $password"
+  echo "backup          : $backup"
+  echo "verify          : $code"
+}
+
+usage() {
+  cat <<'EOF'
+tfw time
+tfw status
+tfw restart
+tfw passwd
+EOF
+}
+
+case "${1:-}" in
+  time)
+    show_time
+    ;;
+  status)
+    show_status
+    ;;
+  restart)
+    restart_nginx
+    ;;
+  passwd)
+    rotate_passwd
+    ;;
+  ""|help|-h|--help)
+    usage
+    ;;
+  *)
+    echo "unknown command: $1" >&2
+    usage
+    exit 1
+    ;;
+esac
