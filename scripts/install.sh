@@ -17,6 +17,8 @@ ACTION="${1:-install}"
 INSTALL_MODE="${INSTALL_MODE:-}"
 LANGUAGE="${LANGUAGE:-}"
 DOMAIN="${DOMAIN:-}"
+SITE_ID="${SITE_ID:-}"
+ACCESS_HOST="${ACCESS_HOST:-}"
 SITE_TITLE="${SITE_TITLE:-}"
 TFW_USER="${TFW_USER:-}"
 DATA_DIR="${DATA_DIR:-}"
@@ -36,6 +38,8 @@ AUTH_USER="${AUTH_USER:-}"
 AUTH_PASSWORD="${AUTH_PASSWORD:-}"
 MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-}"
 IP="${IP:-127.0.0.1}"
+HTTP_PORT="${HTTP_PORT:-}"
+HTTPS_PORT="${HTTPS_PORT:-}"
 AUTO_INSTALL_DEPS="${AUTO_INSTALL_DEPS:-1}"
 INSTALL_ACME="${INSTALL_ACME:-1}"
 
@@ -83,7 +87,10 @@ msg() {
         uninstall_keep_data) echo "已保留数据目录。" ;;
         uninstall_keep_certs) echo "已保留证书目录。" ;;
         upgrade_done) echo "升级完成。" ;;
-        ask_domain) echo "输入绑定域名（必填）" ;;
+        ask_domain) echo "输入绑定域名（可留空）" ;;
+        ask_access_host) echo "输入访问主机名或 IP（留空使用 IP）" ;;
+        ask_http_port) echo "输入 HTTP 端口（留空使用 80）" ;;
+        ask_https_port) echo "输入 HTTPS 端口（留空使用 443）" ;;
         ask_title) echo "输入站点标题（留空使用默认值）" ;;
         ask_user) echo "输入 Nginx 运行用户（留空自动检测）" ;;
         ask_data) echo "输入数据目录（留空使用默认值）" ;;
@@ -95,9 +102,13 @@ msg() {
         ask_auth_password) echo "输入上传密码（留空则随机生成）" ;;
         confirm_auth_password) echo "再次输入上传密码确认" ;;
         ask_upload_size) echo "输入单文件上传大小上限，例如 2g（留空使用默认值）" ;;
-        bad_domain) echo "域名不能为空，且不能包含空格。" ;;
+        bad_domain) echo "域名不能包含空格。" ;;
+        bad_access_host) echo "访问主机名或 IP 不能为空，且不能包含空格。" ;;
+        bad_port) echo "端口必须是 1 到 65535 之间的整数。" ;;
         password_mismatch) echo "两次输入的密码不一致，请重试。" ;;
         invalid_yes_no) echo "请输入 y 或 n。" ;;
+        acme_need_domain) echo "启用 acme.sh 时必须填写域名。" ;;
+        acme_need_http_80) echo "启用 acme.sh 时 HTTP 端口必须为 80。" ;;
         acme_skip) echo "跳过 acme.sh 证书申请，将保留证书路径配置但不签发证书。" ;;
         tls_missing) echo "未发现可用证书文件。" ;;
         tls_next) echo "如需启用 HTTPS，请把证书放到站点 certs 目录后重新执行安装或 upgrade。" ;;
@@ -132,7 +143,10 @@ msg() {
         uninstall_keep_data) echo "Data directory was kept." ;;
         uninstall_keep_certs) echo "Certificate directory was kept." ;;
         upgrade_done) echo "Upgrade completed." ;;
-        ask_domain) echo "Enter the domain name (required)" ;;
+        ask_domain) echo "Enter the domain name (optional)" ;;
+        ask_access_host) echo "Enter the access host or IP (leave empty to use IP)" ;;
+        ask_http_port) echo "Enter the HTTP port (leave empty for 80)" ;;
+        ask_https_port) echo "Enter the HTTPS port (leave empty for 443)" ;;
         ask_title) echo "Enter the site title (leave empty for default)" ;;
         ask_user) echo "Enter the Nginx runtime user (leave empty to auto-detect)" ;;
         ask_data) echo "Enter the data directory (leave empty for default)" ;;
@@ -144,9 +158,13 @@ msg() {
         ask_auth_password) echo "Enter the upload password (leave empty for random)" ;;
         confirm_auth_password) echo "Confirm the upload password" ;;
         ask_upload_size) echo "Enter the max upload size per file, for example 2g (leave empty for default)" ;;
-        bad_domain) echo "Domain must not be empty and must not contain spaces." ;;
+        bad_domain) echo "Domain must not contain spaces." ;;
+        bad_access_host) echo "Access host or IP must not be empty and must not contain spaces." ;;
+        bad_port) echo "Port must be an integer between 1 and 65535." ;;
         password_mismatch) echo "The passwords did not match. Try again." ;;
         invalid_yes_no) echo "Enter y or n." ;;
+        acme_need_domain) echo "DOMAIN is required when acme.sh is enabled." ;;
+        acme_need_http_80) echo "HTTP port must be 80 when acme.sh is enabled." ;;
         acme_skip) echo "Skipping acme.sh issuance. Certificate paths will remain configured but no cert will be issued." ;;
         tls_missing) echo "TLS assets were not found." ;;
         tls_next) echo "To enable HTTPS later, place the certificate files in the site certs directory and rerun install or upgrade." ;;
@@ -222,6 +240,7 @@ prompt_optional() {
 prompt_required() {
   local text="$1"
   local default="${2:-}"
+  local error_key="${3:-bad_domain}"
   local answer
 
   while true; do
@@ -230,7 +249,7 @@ prompt_required() {
       printf '%s' "$answer"
       return 0
     fi
-    echo "$(msg bad_domain)" >&2
+    echo "$(msg "$error_key")" >&2
   done
 }
 
@@ -346,39 +365,73 @@ detect_nginx_user() {
   fi
 }
 
+slugify_site_id() {
+  local value="$1"
+  value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
+  value="$(printf '%s' "$value" | sed 's/[^a-z0-9._-]/-/g')"
+  value="$(printf '%s' "$value" | sed 's/--*/-/g; s/^-//; s/-$//')"
+  printf '%s' "${value:-site}"
+}
+
+default_site_id() {
+  if [[ -n "$DOMAIN" ]]; then
+    slugify_site_id "$DOMAIN"
+  elif [[ -n "$ACCESS_HOST" ]]; then
+    slugify_site_id "$ACCESS_HOST"
+  else
+    slugify_site_id "$IP"
+  fi
+}
+
+is_valid_port() {
+  local port="$1"
+  [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 ))
+}
+
 apply_defaults() {
   SITE_TITLE="${SITE_TITLE:-Temp File Web}"
   TFW_USER="${TFW_USER:-$(detect_nginx_user)}"
+  ACCESS_HOST="${ACCESS_HOST:-${DOMAIN:-$IP}}"
+  SITE_ID="${SITE_ID:-$(default_site_id)}"
   DATA_DIR="${DATA_DIR:-/srv/tfw/data}"
   UPLOAD_DIR="${DATA_DIR}/uploads"
   SITE_BASE_DIR="${SITE_BASE_DIR:-/etc/tfw/sites}"
-  SITE_DIR="${SITE_DIR:-$SITE_BASE_DIR/$DOMAIN}"
+  SITE_DIR="${SITE_DIR:-$SITE_BASE_DIR/$SITE_ID}"
   ACME_WEBROOT="${ACME_WEBROOT:-/var/www/_acme-challenge}"
-  if [[ "$INSTALL_ACME" == "1" && "$ACME_EMAIL_IS_SET" -eq 0 ]]; then
+  HTTP_PORT="${HTTP_PORT:-80}"
+  HTTPS_PORT="${HTTPS_PORT:-443}"
+  if [[ "$INSTALL_ACME" == "1" && -n "$DOMAIN" && "$ACME_EMAIL_IS_SET" -eq 0 ]]; then
     ACME_EMAIL="admin@$DOMAIN"
   fi
   AUTH_USER="${AUTH_USER:-uploader}"
   MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-2g}"
-  CONF_FILE="${CONF_FILE:-$CONF_DIR/tfw-$DOMAIN.conf}"
-  ACME_CONF_FILE="${ACME_CONF_FILE:-$CONF_DIR/tfw-$DOMAIN-acme.conf}"
-  ACCESS_LOG="/var/log/nginx/$DOMAIN.access.log"
-  ERROR_LOG="/var/log/nginx/$DOMAIN.error.log"
+  CONF_FILE="${CONF_FILE:-$CONF_DIR/tfw-$SITE_ID.conf}"
+  ACME_CONF_FILE="${ACME_CONF_FILE:-$CONF_DIR/tfw-$SITE_ID-acme.conf}"
+  ACCESS_LOG="/var/log/nginx/$SITE_ID.access.log"
+  ERROR_LOG="/var/log/nginx/$SITE_ID.error.log"
 }
 
 restore_runtime_derived_values() {
-  CONF_FILE="${CONF_FILE:-$CONF_DIR/tfw-$DOMAIN.conf}"
-  ACME_CONF_FILE="${ACME_CONF_FILE:-$CONF_DIR/tfw-$DOMAIN-acme.conf}"
+  ACCESS_HOST="${ACCESS_HOST:-${DOMAIN:-$IP}}"
+  SITE_ID="${SITE_ID:-$(default_site_id)}"
+  HTTP_PORT="${HTTP_PORT:-80}"
+  HTTPS_PORT="${HTTPS_PORT:-443}"
+  CONF_FILE="${CONF_FILE:-$CONF_DIR/tfw-$SITE_ID.conf}"
+  ACME_CONF_FILE="${ACME_CONF_FILE:-$CONF_DIR/tfw-$SITE_ID-acme.conf}"
   UPLOAD_DIR="${UPLOAD_DIR:-$DATA_DIR/uploads}"
-  SITE_DIR="${SITE_DIR:-$SITE_BASE_DIR/$DOMAIN}"
-  ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/$DOMAIN.access.log}"
-  ERROR_LOG="${ERROR_LOG:-/var/log/nginx/$DOMAIN.error.log}"
+  SITE_DIR="${SITE_DIR:-$SITE_BASE_DIR/$SITE_ID}"
+  ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/$SITE_ID.access.log}"
+  ERROR_LOG="${ERROR_LOG:-/var/log/nginx/$SITE_ID.error.log}"
   SITE_MODE="${SITE_MODE:-https}"
 }
 
 collect_interactive_input() {
   echo "$(msg mode_interactive)"
 
-  DOMAIN="$(prompt_required "$(msg ask_domain)" "${DOMAIN:-}")"
+  DOMAIN="$(prompt "$(msg ask_domain)" "${DOMAIN:-}")"
+  ACCESS_HOST="$(prompt_required "$(msg ask_access_host)" "${ACCESS_HOST:-$IP}" "bad_access_host")"
+  HTTP_PORT="$(prompt "$(msg ask_http_port)" "${HTTP_PORT:-80}")"
+  HTTPS_PORT="$(prompt "$(msg ask_https_port)" "${HTTPS_PORT:-443}")"
   SITE_TITLE="$(prompt "$(msg ask_title)" "${SITE_TITLE:-Temp File Web}")"
   TFW_USER="$(prompt "$(msg ask_user)" "${TFW_USER:-$(detect_nginx_user)}")"
   DATA_DIR="$(prompt "$(msg ask_data)" "${DATA_DIR:-/srv/tfw/data}")"
@@ -397,7 +450,7 @@ collect_interactive_input() {
     if [[ "$ACME_EMAIL_IS_SET" -eq 1 ]]; then
       ACME_EMAIL="$(prompt_optional "$(msg ask_acme_email)" "$ACME_EMAIL")"
     else
-      ACME_EMAIL="$(prompt_optional "$(msg ask_acme_email)" "" "admin@$DOMAIN")"
+      ACME_EMAIL="$(prompt_optional "$(msg ask_acme_email)" "" "${DOMAIN:+admin@$DOMAIN}")"
       ACME_EMAIL_IS_SET=1
     fi
   fi
@@ -408,21 +461,41 @@ collect_interactive_input() {
 
 set_default_mode_values() {
   echo "$(msg mode_default)"
-  if [[ -z "$DOMAIN" ]]; then
-    if [[ -t 0 ]]; then
-      DOMAIN="$(prompt_required "$(msg ask_domain)" "")"
-    else
-      echo "$(msg bad_domain)" >&2
-      exit 1
-    fi
+  if [[ -z "$ACCESS_HOST" ]]; then
+    ACCESS_HOST="${DOMAIN:-$IP}"
   fi
 }
 
 validate_inputs() {
-  [[ -n "$DOMAIN" && "$DOMAIN" != *" "* ]] || {
+  [[ "$DOMAIN" != *" "* ]] || {
     echo "$(msg bad_domain)" >&2
     exit 1
   }
+
+  [[ -n "$ACCESS_HOST" && "$ACCESS_HOST" != *" "* ]] || {
+    echo "$(msg bad_access_host)" >&2
+    exit 1
+  }
+
+  is_valid_port "$HTTP_PORT" || {
+    echo "$(msg bad_port)" >&2
+    exit 1
+  }
+
+  is_valid_port "$HTTPS_PORT" || {
+    echo "$(msg bad_port)" >&2
+    exit 1
+  }
+
+  if [[ "$INSTALL_ACME" == "1" && -z "$DOMAIN" ]]; then
+    echo "$(msg acme_need_domain)" >&2
+    exit 1
+  fi
+
+  if [[ "$INSTALL_ACME" == "1" && "$HTTP_PORT" != "80" ]]; then
+    echo "$(msg acme_need_http_80)" >&2
+    exit 1
+  fi
 }
 
 backup_if_exists() {
@@ -534,6 +607,9 @@ render_template() {
 
   sed -i \
     -e "s|\${DOMAIN}|$(sed_escape "$DOMAIN")|g" \
+    -e "s|\${SITE_ID}|$(sed_escape "$SITE_ID")|g" \
+    -e "s|\${ACCESS_HOST}|$(sed_escape "$ACCESS_HOST")|g" \
+    -e "s|\${ACCESS_BASE}|$(sed_escape "$(build_access_base)")|g" \
     -e "s|\${SITE_TITLE}|$(sed_escape "$SITE_TITLE")|g" \
     -e "s|\${LANG_HTML}|$(sed_escape "$LANG_HTML")|g" \
     -e "s|\${CONF}|$(sed_escape "$CONF_FILE")|g" \
@@ -547,9 +623,11 @@ render_template() {
     -e "s|\${ERROR_LOG}|$(sed_escape "$ERROR_LOG")|g" \
     -e "s|\${ACME_WEBROOT}|$(sed_escape "$ACME_WEBROOT")|g" \
     -e "s|\${CERT_FILE}|$(sed_escape "$SITE_DIR/certs/fullchain.cer")|g" \
-    -e "s|\${KEY_FILE}|$(sed_escape "$SITE_DIR/certs/$DOMAIN.key")|g" \
+    -e "s|\${KEY_FILE}|$(sed_escape "$SITE_DIR/certs/$SITE_ID.key")|g" \
     -e "s|\${MAX_UPLOAD_SIZE}|$(sed_escape "$MAX_UPLOAD_SIZE")|g" \
     -e "s|\${IP}|$(sed_escape "$IP")|g" \
+    -e "s|\${HTTP_PORT}|$(sed_escape "$HTTP_PORT")|g" \
+    -e "s|\${HTTPS_PORT}|$(sed_escape "$HTTPS_PORT")|g" \
     -e "s|\${LANGUAGE}|$(sed_escape "$LANGUAGE")|g" \
     -e "s|\${ACME_HOME}|$(sed_escape "$ACME_HOME")|g" \
     -e "s|\${ACME_BIN}|$(sed_escape "$ACME_BIN")|g" \
@@ -557,6 +635,26 @@ render_template() {
 
   install -m 0644 "$tmp" "$dest"
   rm -f "$tmp"
+}
+
+build_access_base() {
+  local scheme port authority
+  if [[ "$SITE_MODE" == "https" ]]; then
+    scheme="https"
+    port="$HTTPS_PORT"
+  else
+    scheme="http"
+    port="$HTTP_PORT"
+  fi
+
+  authority="$ACCESS_HOST"
+  if [[ "$scheme" == "http" && "$port" != "80" ]]; then
+    authority="${authority}:${port}"
+  elif [[ "$scheme" == "https" && "$port" != "443" ]]; then
+    authority="${authority}:${port}"
+  fi
+
+  printf '%s://%s' "$scheme" "$authority"
 }
 
 render_nginx_template() {
@@ -773,7 +871,7 @@ issue_certificate() {
   "$ACME_BIN" --set-default-ca --server letsencrypt
   "$ACME_BIN" --issue -d "$DOMAIN" -w "$ACME_WEBROOT"
   "$ACME_BIN" --install-cert -d "$DOMAIN" \
-    --key-file "$SITE_DIR/certs/$DOMAIN.key" \
+    --key-file "$SITE_DIR/certs/$SITE_ID.key" \
     --fullchain-file "$SITE_DIR/certs/fullchain.cer" \
     --reloadcmd "nginx -t && (systemctl reload nginx || nginx -s reload)"
 }
@@ -792,7 +890,7 @@ issue_certificate_if_enabled() {
 }
 
 have_tls_assets() {
-  [[ -f "$SITE_DIR/certs/fullchain.cer" && -f "$SITE_DIR/certs/$DOMAIN.key" ]]
+  [[ -f "$SITE_DIR/certs/fullchain.cer" && -f "$SITE_DIR/certs/$SITE_ID.key" ]]
 }
 
 set_site_mode() {
@@ -814,6 +912,9 @@ print_summary() {
   echo "  upload dir      : $UPLOAD_DIR"
   echo "  site dir        : $SITE_DIR"
   echo "  site mode       : ${SITE_MODE:-auto}"
+  echo "  access host     : $ACCESS_HOST"
+  echo "  http port       : $HTTP_PORT"
+  echo "  https port      : $HTTPS_PORT"
   echo "  acme enabled    : $(if [[ "$INSTALL_ACME" == "1" ]]; then msg yes; else msg no; fi)"
   if [[ "$INSTALL_ACME" == "1" ]]; then
     echo "  acme webroot    : $ACME_WEBROOT"
@@ -1017,7 +1118,7 @@ main() {
   echo "tfw config      : $TFW_CONFIG_FILE"
   echo "site config     : $CONF_FILE"
   echo "cert file       : $SITE_DIR/certs/fullchain.cer"
-  echo "key file        : $SITE_DIR/certs/$DOMAIN.key"
+  echo "key file        : $SITE_DIR/certs/$SITE_ID.key"
   echo "upload user     : $AUTH_USER"
   echo "upload password : $AUTH_PASSWORD"
   echo "$(msg nginx_main_hint) ${NGINX_MAIN_TEMPLATE}"

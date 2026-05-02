@@ -9,39 +9,57 @@ if [[ -f "$CONFIG_FILE" ]]; then
   . "$CONFIG_FILE"
 fi
 
-DOMAIN="${DOMAIN:-files.example.com}"
+DOMAIN="${DOMAIN:-}"
+SITE_ID="${SITE_ID:-site}"
 IP="${IP:-127.0.0.1}"
+ACCESS_HOST="${ACCESS_HOST:-${DOMAIN:-$IP}}"
 SITE_TITLE="${SITE_TITLE:-Temp File Web}"
 LANGUAGE="${LANGUAGE:-en}"
 INSTALL_ACME="${INSTALL_ACME:-1}"
 SITE_MODE="${SITE_MODE:-https}"
-CONF="${CONF:-/etc/nginx/conf.d/tfw-$DOMAIN.conf}"
-SITE_DIR="${SITE_DIR:-/etc/tfw/sites/$DOMAIN}"
+HTTP_PORT="${HTTP_PORT:-80}"
+HTTPS_PORT="${HTTPS_PORT:-443}"
+CONF="${CONF:-/etc/nginx/conf.d/tfw-$SITE_ID.conf}"
+SITE_DIR="${SITE_DIR:-/etc/tfw/sites/$SITE_ID}"
 AUTH_FILE="${AUTH_FILE:-$SITE_DIR/file-upload.htpasswd}"
 DATA_DIR="${DATA_DIR:-/srv/tfw/data}"
 UPLOAD_DIR="${UPLOAD_DIR:-$DATA_DIR/uploads}"
 BROWSER_HTML="${BROWSER_HTML:-$SITE_DIR/file-browser.html}"
 UPLOAD_HTML="${UPLOAD_HTML:-$SITE_DIR/file-upload.html}"
-ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/$DOMAIN.access.log}"
-ERROR_LOG="${ERROR_LOG:-/var/log/nginx/$DOMAIN.error.log}"
+ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/$SITE_ID.access.log}"
+ERROR_LOG="${ERROR_LOG:-/var/log/nginx/$SITE_ID.error.log}"
 ACME_WEBROOT="${ACME_WEBROOT:-/var/www/_acme-challenge}"
 CERT_FILE="${CERT_FILE:-$SITE_DIR/certs/fullchain.cer}"
-KEY_FILE="${KEY_FILE:-$SITE_DIR/certs/$DOMAIN.key}"
+KEY_FILE="${KEY_FILE:-$SITE_DIR/certs/$SITE_ID.key}"
 MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-2g}"
 ACME_HOME="${ACME_HOME:-/root/.acme.sh}"
 ACME_BIN="${ACME_BIN:-$ACME_HOME/acme.sh}"
 
 url_scheme="https"
-url_port="443"
+url_port="$HTTPS_PORT"
 if [[ "$SITE_MODE" == "http" ]]; then
   url_scheme="http"
-  url_port="80"
+  url_port="$HTTP_PORT"
 fi
 
-url_root="${url_scheme}://${DOMAIN}/"
-url_upload="${url_scheme}://${DOMAIN}/upload"
-url_uploads="${url_scheme}://${DOMAIN}/uploads/"
-url_listing="${url_scheme}://${DOMAIN}/_listing/"
+url_authority="$ACCESS_HOST"
+default_port="$HTTPS_PORT"
+if [[ "$SITE_MODE" == "http" ]]; then
+  default_port="$HTTP_PORT"
+fi
+
+if [[ "$url_port" != "$default_port" ]]; then
+  url_authority="${ACCESS_HOST}:${url_port}"
+elif [[ "$SITE_MODE" == "http" && "$HTTP_PORT" != "80" ]]; then
+  url_authority="${ACCESS_HOST}:${HTTP_PORT}"
+elif [[ "$SITE_MODE" == "https" && "$HTTPS_PORT" != "443" ]]; then
+  url_authority="${ACCESS_HOST}:${HTTPS_PORT}"
+fi
+
+url_root="${url_scheme}://${url_authority}/"
+url_upload="${url_scheme}://${url_authority}/upload"
+url_uploads="${url_scheme}://${url_authority}/uploads/"
+url_listing="${url_scheme}://${url_authority}/_listing/"
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -129,9 +147,9 @@ http_code() {
   local url="$1"
   local auth="${2:-}"
   if [[ -n "$auth" ]]; then
-    curl -sk -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:${url_port}:${IP}" -u "$auth" "$url" 2>/dev/null || echo ERR
+    curl -sk -o /dev/null -w '%{http_code}' --resolve "${ACCESS_HOST}:${url_port}:${IP}" -u "$auth" "$url" 2>/dev/null || echo ERR
   else
-    curl -sk -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:${url_port}:${IP}" "$url" 2>/dev/null || echo ERR
+    curl -sk -o /dev/null -w '%{http_code}' --resolve "${ACCESS_HOST}:${url_port}:${IP}" "$url" 2>/dev/null || echo ERR
   fi
 }
 
@@ -153,7 +171,13 @@ show_info() {
   echo "language        : $LANGUAGE"
   echo "site mode       : $SITE_MODE"
   echo "site title      : $SITE_TITLE"
-  echo "domain          : $DOMAIN"
+  echo "site id         : $SITE_ID"
+  if [[ -n "$DOMAIN" ]]; then
+    echo "domain          : $DOMAIN"
+  fi
+  echo "access host     : $ACCESS_HOST"
+  echo "http port       : $HTTP_PORT"
+  echo "https port      : $HTTPS_PORT"
   echo "resolve ip      : $IP"
   echo "site dir        : $SITE_DIR ($(path_state "$SITE_DIR"))"
   echo "config file     : $CONF ($(path_state "$CONF"))"
@@ -185,13 +209,16 @@ show_status() {
   need curl
 
   local listing_payload listing_count auth_user_name
-  listing_payload="$(curl -sk --resolve "${DOMAIN}:${url_port}:${IP}" "$url_listing" 2>/dev/null || true)"
+  listing_payload="$(curl -sk --resolve "${ACCESS_HOST}:${url_port}:${IP}" "$url_listing" 2>/dev/null || true)"
   listing_count="$(printf '%s' "$listing_payload" | grep -o '"name":"' | wc -l | awk '{print $1}')"
   auth_user_name="$(auth_user || true)"
 
   echo "time            : $(date '+%Y-%m-%d %H:%M:%S %Z (%z)')"
-  echo "domain          : $DOMAIN"
   echo "site mode       : $SITE_MODE"
+  if [[ -n "$DOMAIN" ]]; then
+    echo "domain          : $DOMAIN"
+  fi
+  echo "access host     : $ACCESS_HOST"
   echo "resolve ip      : $IP"
   echo "config file     : $CONF ($(path_state "$CONF"))"
   echo "auth file       : $AUTH_FILE ($(path_state "$AUTH_FILE"))"

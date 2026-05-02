@@ -1,7 +1,7 @@
 server {
-    listen 80;
-    listen [::]:80;
-    server_name ${DOMAIN};
+    listen ${HTTP_PORT};
+    listen [::]:${HTTP_PORT};
+    server_name ${ACCESS_HOST};
 
 ${SITE_COMMON}
 }

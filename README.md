@@ -21,7 +21,7 @@ It is designed for deploying on new machines without hardcoded domain assumption
 - 换机器时不需要手改一堆硬编码路径
 - 首次安装时可选择中文或英文
 - 可选择交互式安装或一键默认安装
-- 可直接接入 `acme.sh` 自动申请证书
+- 可直接接入 `acme.sh` 自动申请证书（需要域名）
 - 证书不是必选项，可先以 HTTP 方式快速上线
 - 安装后生成运行配置，`tfw` 会按实际部署参数工作
 
@@ -174,6 +174,9 @@ bash scripts/install.sh install
 如果选择交互式安装，会逐项询问：
 
 - 域名
+- 访问主机名或 IP
+- HTTP 端口
+- HTTPS 端口
 - 站点标题
 - Nginx 运行用户
 - 数据目录
@@ -190,7 +193,9 @@ bash scripts/install.sh install
 
 交互式安装里，这些字段现在支持直接回车处理：
 
-- 域名：必填，不能留空
+- 域名：可留空；如果要启用 ACME，则必须填写
+- 访问主机名或 IP：必填；留空时默认使用 `IP`
+- HTTP 端口、HTTPS 端口：留空时使用默认值 `80`、`443`
 - 站点标题、Nginx 用户、数据目录、站点资源目录、上传用户名、上传上限：留空时使用默认值
 - ACME webroot：仅在启用 acme.sh 时出现，留空时使用默认值
 - 证书邮箱：留空时跳过，不强制写默认邮箱
@@ -205,10 +210,24 @@ bash scripts/install.sh install
 
 ### 2. 一键默认安装
 
-一键默认安装仍然至少需要域名，其余使用安全默认值：
+一键默认安装不再强制要求域名。
+
+使用域名并启用 ACME：
 
 ```bash
 DOMAIN=files.example.com INSTALL_MODE=default LANGUAGE=zh bash scripts/install.sh install
+```
+
+使用 IP 和端口直接访问：
+
+```bash
+IP=192.0.2.10 \
+ACCESS_HOST=192.0.2.10 \
+HTTP_PORT=8080 \
+INSTALL_ACME=0 \
+INSTALL_MODE=default \
+LANGUAGE=zh \
+bash scripts/install.sh install
 ```
 
 默认值大致如下：
@@ -226,6 +245,7 @@ DOMAIN=files.example.com INSTALL_MODE=default LANGUAGE=zh bash scripts/install.s
 
 ```bash
 DOMAIN=files.example.com \
+ACCESS_HOST=files.example.com \
 SITE_TITLE="Team Files" \
 LANGUAGE=en \
 INSTALL_MODE=default \
@@ -239,6 +259,11 @@ AUTH_PASSWORD='strong-password' \
 MAX_UPLOAD_SIZE=4g \
 bash scripts/install.sh
 ```
+
+ACME 使用限制：
+
+- `DOMAIN` 必填
+- `HTTP_PORT` 必须为 `80`
 
 ## 升级
 

@@ -239,7 +239,7 @@
       <p class="hint">${UPLOAD_HINT}</p>
       <input id="files" type="file" multiple>
       <ul id="queue"></ul>
-      <div class="tip">${UPLOAD_DONE_PREFIX} <code>https://${DOMAIN}/uploads/${UPLOAD_FILE_PLACEHOLDER}</code>${UPLOAD_DONE_SUFFIX}</div>
+      <div class="tip">${UPLOAD_DONE_PREFIX} <code>${ACCESS_BASE}/uploads/${UPLOAD_FILE_PLACEHOLDER}</code>${UPLOAD_DONE_SUFFIX}</div>
     </section>
   </main>
 
