@@ -778,6 +778,11 @@ fill_page_i18n() {
       -e "s|\${UPLOAD_DONE_PREFIX}|上传完成后，文件公开地址是 |g" \
       -e "s|\${UPLOAD_DONE_SUFFIX}|。|g" \
       -e "s|\${UPLOAD_FILE_PLACEHOLDER}|文件名|g" \
+      -e "s|\${AUTH_USER_LABEL}|用户名|g" \
+      -e "s|\${AUTH_PASSWORD_LABEL}|密码|g" \
+      -e "s|\${AUTH_SUBMIT}|登录并进入上传|g" \
+      -e "s|\${AUTH_OK}|已登录|g" \
+      -e "s|\${AUTH_HINT}|登录后可继续保持当前页面风格进行上传。认证信息仅用于当前页面会话。|g" \
       -e "s|\${JS_UNKNOWN_SIZE}|$(js_string "未知大小")|g" \
       -e "s|\${JS_UNKNOWN_TIME}|$(js_string "未知时间")|g" \
       -e "s|\${JS_EYEBROW_ROOT}|$(js_string "公开文件目录")|g" \
@@ -808,6 +813,10 @@ fill_page_i18n() {
       -e "s|\${JS_UPLOAD_FAILED}|$(js_string "上传失败")|g" \
       -e "s|\${JS_UPLOAD_NET_ERROR}|$(js_string "网络错误")|g" \
       -e "s|\${JS_UPLOAD_ABORTED}|$(js_string "上传已取消")|g" \
+      -e "s|\${JS_AUTH_REQUIRED}|$(js_string "请输入用户名和密码")|g" \
+      -e "s|\${JS_AUTH_FAILED}|$(js_string "认证失败，请检查用户名和密码")|g" \
+      -e "s|\${JS_AUTH_NETWORK}|$(js_string "认证请求失败")|g" \
+      -e "s|\${JS_AUTH_CHECKING}|$(js_string "正在验证")|g" \
       "$file"
   else
     LANG_HTML="en"
@@ -836,6 +845,11 @@ fill_page_i18n() {
       -e "s|\${UPLOAD_DONE_PREFIX}|After upload, the public file URL is |g" \
       -e "s|\${UPLOAD_DONE_SUFFIX}|.|g" \
       -e "s|\${UPLOAD_FILE_PLACEHOLDER}|filename|g" \
+      -e "s|\${AUTH_USER_LABEL}|Username|g" \
+      -e "s|\${AUTH_PASSWORD_LABEL}|Password|g" \
+      -e "s|\${AUTH_SUBMIT}|Sign in to upload|g" \
+      -e "s|\${AUTH_OK}|Signed in|g" \
+      -e "s|\${AUTH_HINT}|After sign-in, the page keeps the same interface style and continues directly into upload mode.|g" \
       -e "s|\${JS_UNKNOWN_SIZE}|$(js_string "Unknown size")|g" \
       -e "s|\${JS_UNKNOWN_TIME}|$(js_string "Unknown time")|g" \
       -e "s|\${JS_EYEBROW_ROOT}|$(js_string "Public file directory")|g" \
@@ -866,6 +880,10 @@ fill_page_i18n() {
       -e "s|\${JS_UPLOAD_FAILED}|$(js_string "Upload failed")|g" \
       -e "s|\${JS_UPLOAD_NET_ERROR}|$(js_string "Network error")|g" \
       -e "s|\${JS_UPLOAD_ABORTED}|$(js_string "Upload aborted")|g" \
+      -e "s|\${JS_AUTH_REQUIRED}|$(js_string "Enter username and password")|g" \
+      -e "s|\${JS_AUTH_FAILED}|$(js_string "Authentication failed. Check your username and password.")|g" \
+      -e "s|\${JS_AUTH_NETWORK}|$(js_string "Authentication request failed")|g" \
+      -e "s|\${JS_AUTH_CHECKING}|$(js_string "Checking")|g" \
       "$file"
   fi
 }

@@ -36,8 +36,6 @@
     }
 
     location = /upload {
-        auth_basic "file-upload";
-        auth_basic_user_file ${AUTH_FILE};
         alias ${UPLOAD_HTML};
         default_type text/html;
         add_header Cache-Control "no-store" always;
@@ -45,6 +43,13 @@
 
     location = /upload/ {
         return 301 /upload;
+    }
+
+    location = /_auth_upload {
+        internal;
+        auth_basic "file-upload";
+        auth_basic_user_file ${AUTH_FILE};
+        return 204;
     }
 
     location = /uploads {

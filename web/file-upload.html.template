@@ -16,6 +16,7 @@
       --accent-soft: rgba(179, 77, 34, 0.12);
       --ok: #226f54;
       --bad: #aa2e25;
+      --shadow: rgba(73, 53, 39, 0.12);
     }
 
     * {
@@ -41,7 +42,7 @@
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 22px;
-      box-shadow: 0 24px 80px rgba(73, 53, 39, 0.12);
+      box-shadow: 0 24px 80px var(--shadow);
       overflow: hidden;
       backdrop-filter: blur(10px);
     }
@@ -80,18 +81,18 @@
       padding: 28px 32px 32px;
     }
 
-    .actions {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 18px;
-    }
-
     .nav {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
       margin-top: 18px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
     }
 
     .pick,
@@ -142,6 +143,82 @@
     .hint {
       font-size: 14px;
       margin-bottom: 18px;
+    }
+
+    .auth-card {
+      max-width: 420px;
+      display: grid;
+      gap: 16px;
+      margin: 0 auto;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .auth-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field label {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .field input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px 16px;
+      font: inherit;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.88);
+      outline: none;
+    }
+
+    .field input:focus {
+      border-color: rgba(179, 77, 34, 0.48);
+      box-shadow: 0 0 0 4px rgba(179, 77, 34, 0.08);
+    }
+
+    .auth-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .auth-error,
+    .auth-ok,
+    .status,
+    .tip {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .auth-error,
+    .status.err {
+      color: var(--bad);
+    }
+
+    .auth-ok,
+    .status.ok {
+      color: var(--ok);
+    }
+
+    .auth-meta,
+    .tip {
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.68);
+      color: var(--muted);
     }
 
     ul {
@@ -195,27 +272,11 @@
 
     .status {
       margin-top: 8px;
-      font-size: 14px;
       color: var(--muted);
     }
 
-    .status.ok {
-      color: var(--ok);
-    }
-
-    .status.err {
-      color: var(--bad);
-    }
-
-    .tip {
-      margin-top: 18px;
-      padding: 14px 16px;
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.68);
-      color: var(--muted);
-      line-height: 1.6;
-      font-size: 14px;
+    [hidden] {
+      display: none !important;
     }
   </style>
 </head>
@@ -230,7 +291,29 @@
         <a class="nav-link" href="/uploads/">${NAV_UPLOADS}</a>
       </div>
     </section>
-    <section class="panel">
+
+    <section class="panel" id="auth-panel">
+      <div class="auth-card">
+        <div class="auth-grid">
+          <div class="field">
+            <label for="auth-user">${AUTH_USER_LABEL}</label>
+            <input id="auth-user" name="username" autocomplete="username">
+          </div>
+          <div class="field">
+            <label for="auth-pass">${AUTH_PASSWORD_LABEL}</label>
+            <input id="auth-pass" name="password" type="password" autocomplete="current-password">
+          </div>
+        </div>
+        <div class="auth-actions">
+          <button id="auth-submit">${AUTH_SUBMIT}</button>
+          <span class="auth-ok" id="auth-ok" hidden>${AUTH_OK}</span>
+        </div>
+        <div class="auth-error" id="auth-error" hidden></div>
+        <div class="auth-meta">${AUTH_HINT}</div>
+      </div>
+    </section>
+
+    <section class="panel" id="upload-panel" hidden>
       <div class="actions">
         <label class="pick" for="files">${UPLOAD_PICK}</label>
         <button id="start" disabled>${UPLOAD_START}</button>
@@ -252,13 +335,83 @@
       openFile: ${JS_UPLOAD_OPEN_FILE},
       failed: ${JS_UPLOAD_FAILED},
       networkError: ${JS_UPLOAD_NET_ERROR},
-      aborted: ${JS_UPLOAD_ABORTED}
+      aborted: ${JS_UPLOAD_ABORTED},
+      authRequired: ${JS_AUTH_REQUIRED},
+      authFailed: ${JS_AUTH_FAILED},
+      authNetwork: ${JS_AUTH_NETWORK},
+      authChecking: ${JS_AUTH_CHECKING}
     };
 
+    const authPanel = document.getElementById("auth-panel");
+    const uploadPanel = document.getElementById("upload-panel");
+    const authUser = document.getElementById("auth-user");
+    const authPass = document.getElementById("auth-pass");
+    const authSubmit = document.getElementById("auth-submit");
+    const authError = document.getElementById("auth-error");
+    const authOk = document.getElementById("auth-ok");
     const filesInput = document.getElementById("files");
     const startButton = document.getElementById("start");
     const queue = document.getElementById("queue");
+
     let files = [];
+    let authHeader = "";
+
+    function encodeBasicAuth(username, password) {
+      return `Basic ${btoa(`${username}:${password}`)}`;
+    }
+
+    function showAuthError(message) {
+      authError.hidden = false;
+      authError.textContent = message;
+      authOk.hidden = true;
+    }
+
+    function clearAuthState() {
+      authError.hidden = true;
+      authError.textContent = "";
+      authOk.hidden = true;
+    }
+
+    async function verifyLogin() {
+      const username = authUser.value.trim();
+      const password = authPass.value;
+
+      if (!username || !password) {
+        showAuthError(I18N.authRequired);
+        return;
+      }
+
+      clearAuthState();
+      authSubmit.disabled = true;
+      authSubmit.textContent = I18N.authChecking;
+
+      try {
+        const header = encodeBasicAuth(username, password);
+        const response = await fetch("/_auth_upload", {
+          cache: "no-store",
+          headers: {
+            Authorization: header
+          }
+        });
+
+        if (response.status === 204) {
+          authHeader = header;
+          authPanel.hidden = true;
+          uploadPanel.hidden = false;
+          authOk.hidden = false;
+          authSubmit.textContent = "${AUTH_SUBMIT}";
+          authSubmit.disabled = false;
+          return;
+        }
+
+        showAuthError(I18N.authFailed);
+      } catch (error) {
+        showAuthError(I18N.authNetwork);
+      }
+
+      authSubmit.textContent = "${AUTH_SUBMIT}";
+      authSubmit.disabled = false;
+    }
 
     function formatBytes(bytes) {
       const units = ["B", "KB", "MB", "GB", "TB"];
@@ -311,6 +464,7 @@
         const target = `/uploads/${encodeURIComponent(file.name)}`;
         xhr.open("PUT", target);
         xhr.responseType = "text";
+        xhr.setRequestHeader("Authorization", authHeader);
 
         xhr.upload.addEventListener("progress", (event) => {
           if (!event.lengthComputable) {
@@ -341,6 +495,14 @@
         xhr.send(file);
       });
     }
+
+    authSubmit.addEventListener("click", verifyLogin);
+    authPass.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        verifyLogin();
+      }
+    });
 
     filesInput.addEventListener("change", () => {
       files = Array.from(filesInput.files || []);
