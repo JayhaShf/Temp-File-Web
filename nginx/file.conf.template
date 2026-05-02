@@ -1,15 +1,42 @@
 server {
-    listen 443 ssl;
-    server_name file.jayha.top;
-    ssl_certificate /etc/nginx/jayha.top/jayha.top.pem;
-    ssl_certificate_key /etc/nginx/jayha.top/jayha.top.key;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN};
 
-    root /var/www/files;
+    ssl_certificate ${CERT_FILE};
+    ssl_certificate_key ${KEY_FILE};
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+    root ${DATA_DIR};
     charset utf-8;
+    server_tokens off;
+    autoindex off;
+    client_max_body_size ${MAX_UPLOAD_SIZE};
+    client_body_timeout 300s;
+    keepalive_timeout 30s;
+    access_log ${ACCESS_LOG};
+    error_log ${ERROR_LOG};
+
+    location ^~ /.well-known/acme-challenge/ {
+        root ${ACME_WEBROOT};
+        default_type text/plain;
+        allow all;
+        try_files $uri =404;
+    }
 
     location = /_file_browser {
         internal;
-        alias /etc/nginx/jayha.top/file-browser.html;
+        alias ${BROWSER_HTML};
         default_type text/html;
         add_header Cache-Control "no-store" always;
     }
@@ -24,8 +51,8 @@ server {
 
     location = /upload {
         auth_basic "file-upload";
-        auth_basic_user_file /etc/nginx/jayha.top/file-upload.htpasswd;
-        alias /etc/nginx/jayha.top/file-upload.html;
+        auth_basic_user_file ${AUTH_FILE};
+        alias ${UPLOAD_HTML};
         default_type text/html;
         add_header Cache-Control "no-store" always;
     }
@@ -39,7 +66,7 @@ server {
     }
 
     location ^~ /_listing/ {
-        alias /var/www/files/;
+        alias ${DATA_DIR}/;
         autoindex on;
         autoindex_format json;
         autoindex_exact_size off;
@@ -56,16 +83,15 @@ server {
         }
     }
 
-    location /uploads/ {
-        client_max_body_size 2g;
-        client_body_timeout 300s;
+    location ^~ /uploads/ {
+        client_max_body_size ${MAX_UPLOAD_SIZE};
         dav_methods PUT;
         create_full_put_path off;
-        dav_access user:rw group:rw all:r;
+        dav_access user:rw group:r all:r;
 
         limit_except GET HEAD OPTIONS {
             auth_basic "file-upload";
-            auth_basic_user_file /etc/nginx/jayha.top/file-upload.htpasswd;
+            auth_basic_user_file ${AUTH_FILE};
         }
 
         if ($request_method = OPTIONS) {
@@ -80,7 +106,7 @@ server {
         }
 
         if ($request_filename ~* \.(zip|rar|7z|gz|tar|exe|docx|xlsx|pptx|pdf)$) {
-            add_header Content-Disposition "attachment";
+            add_header Content-Disposition "attachment" always;
         }
 
         sendfile on;
@@ -88,11 +114,23 @@ server {
         tcp_nopush on;
         directio 5m;
         output_buffers 4 32k;
+        try_files $uri $uri/ =404;
     }
 }
 
 server {
     listen 80;
-    server_name file.jayha.top;
-    return 301 https://$host$request_uri;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    location ^~ /.well-known/acme-challenge/ {
+        root ${ACME_WEBROOT};
+        default_type text/plain;
+        allow all;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
 }

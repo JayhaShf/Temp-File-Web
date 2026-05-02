@@ -2,12 +2,32 @@
 
 set -euo pipefail
 
-DOMAIN="${DOMAIN:-file.jayha.top}"
+CONFIG_FILE="${TFW_CONFIG:-/etc/tfw/tfw.conf}"
+
+if [[ -f "$CONFIG_FILE" ]]; then
+  # shellcheck disable=SC1090
+  . "$CONFIG_FILE"
+fi
+
+DOMAIN="${DOMAIN:-files.example.com}"
 IP="${IP:-127.0.0.1}"
-CONF="${CONF:-/etc/nginx/conf.d/file.conf}"
-AUTH_FILE="${AUTH_FILE:-/etc/nginx/jayha.top/file-upload.htpasswd}"
-DATA_DIR="${DATA_DIR:-/var/www/files}"
-UPLOAD_DIR="${UPLOAD_DIR:-/var/www/files/uploads}"
+SITE_TITLE="${SITE_TITLE:-TFW File Server}"
+LANGUAGE="${LANGUAGE:-en}"
+CONF="${CONF:-/etc/nginx/conf.d/tfw-$DOMAIN.conf}"
+SITE_DIR="${SITE_DIR:-/etc/tfw/sites/$DOMAIN}"
+AUTH_FILE="${AUTH_FILE:-$SITE_DIR/file-upload.htpasswd}"
+DATA_DIR="${DATA_DIR:-/srv/tfw/data}"
+UPLOAD_DIR="${UPLOAD_DIR:-$DATA_DIR/uploads}"
+BROWSER_HTML="${BROWSER_HTML:-$SITE_DIR/file-browser.html}"
+UPLOAD_HTML="${UPLOAD_HTML:-$SITE_DIR/file-upload.html}"
+ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/$DOMAIN.access.log}"
+ERROR_LOG="${ERROR_LOG:-/var/log/nginx/$DOMAIN.error.log}"
+ACME_WEBROOT="${ACME_WEBROOT:-/var/www/_acme-challenge}"
+CERT_FILE="${CERT_FILE:-$SITE_DIR/certs/fullchain.cer}"
+KEY_FILE="${KEY_FILE:-$SITE_DIR/certs/$DOMAIN.key}"
+MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-2g}"
+ACME_HOME="${ACME_HOME:-/root/.acme.sh}"
+ACME_BIN="${ACME_BIN:-$ACME_HOME/acme.sh}"
 
 url_root="https://${DOMAIN}/"
 url_upload="https://${DOMAIN}/upload"
@@ -29,7 +49,71 @@ need_root() {
 }
 
 auth_user() {
-  [[ -f "$AUTH_FILE" ]] && awk -F: 'NR==1{print $1}' "$AUTH_FILE"
+  if [[ -f "$AUTH_FILE" ]]; then
+    awk -F: 'NR==1{print $1; exit}' "$AUTH_FILE"
+  fi
+}
+
+path_state() {
+  local path="$1"
+  if [[ -d "$path" ]]; then
+    echo "ok (dir)"
+  elif [[ -f "$path" ]]; then
+    echo "ok (file)"
+  else
+    echo "missing"
+  fi
+}
+
+count_entries() {
+  local dir="$1"
+  local kind="${2:-all}"
+
+  if [[ ! -d "$dir" ]]; then
+    echo 0
+    return 0
+  fi
+
+  if [[ "$kind" == "files" ]]; then
+    find "$dir" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l | awk '{print $1}'
+  else
+    find "$dir" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | awk '{print $1}'
+  fi
+}
+
+dir_size() {
+  local dir="$1"
+
+  if [[ -d "$dir" ]]; then
+    du -sh "$dir" 2>/dev/null | awk '{print $1}'
+  else
+    echo 0
+  fi
+}
+
+free_space() {
+  local path="$1"
+  local value
+
+  if [[ -e "$path" || -d "$(dirname "$path")" ]]; then
+    value="$(df -h "$path" 2>/dev/null | awk 'NR==2{print $4}')"
+  fi
+
+  echo "${value:--}"
+}
+
+resolve_dir() {
+  case "${1:-root}" in
+    ""|root)
+      printf '%s\n' "$DATA_DIR"
+      ;;
+    upload|uploads)
+      printf '%s\n' "$UPLOAD_DIR"
+      ;;
+    *)
+      printf '%s\n' "$1"
+      ;;
+  esac
 }
 
 http_code() {
@@ -48,29 +132,119 @@ show_time() {
   echo "host  : $(hostname)"
 }
 
+show_urls() {
+  echo "root            : $url_root"
+  echo "upload page     : $url_upload"
+  echo "uploads dir     : $url_uploads"
+  echo "listing api     : $url_listing"
+}
+
+show_info() {
+  echo "runtime config  : $CONFIG_FILE ($(path_state "$CONFIG_FILE"))"
+  echo "language        : $LANGUAGE"
+  echo "site title      : $SITE_TITLE"
+  echo "domain          : $DOMAIN"
+  echo "resolve ip      : $IP"
+  echo "site dir        : $SITE_DIR ($(path_state "$SITE_DIR"))"
+  echo "config file     : $CONF ($(path_state "$CONF"))"
+  echo "auth file       : $AUTH_FILE ($(path_state "$AUTH_FILE"))"
+  echo "data dir        : $DATA_DIR ($(path_state "$DATA_DIR"))"
+  echo "upload dir      : $UPLOAD_DIR ($(path_state "$UPLOAD_DIR"))"
+  echo "browser html    : $BROWSER_HTML ($(path_state "$BROWSER_HTML"))"
+  echo "upload html     : $UPLOAD_HTML ($(path_state "$UPLOAD_HTML"))"
+  echo "acme webroot    : $ACME_WEBROOT ($(path_state "$ACME_WEBROOT"))"
+  echo "cert file       : $CERT_FILE ($(path_state "$CERT_FILE"))"
+  echo "key file        : $KEY_FILE ($(path_state "$KEY_FILE"))"
+  echo "access log      : $ACCESS_LOG ($(path_state "$ACCESS_LOG"))"
+  echo "error log       : $ERROR_LOG ($(path_state "$ERROR_LOG"))"
+  echo "auth user       : $(auth_user || true)"
+  echo
+  show_urls
+}
+
+test_nginx() {
+  need nginx
+  nginx -t
+}
+
 show_status() {
   need nginx
   need curl
 
-  local listing_payload listing_count
+  local listing_payload listing_count auth_user_name
   listing_payload="$(curl -sk --resolve "${DOMAIN}:443:${IP}" "$url_listing" 2>/dev/null || true)"
   listing_count="$(printf '%s' "$listing_payload" | grep -o '"name":"' | wc -l | awk '{print $1}')"
+  auth_user_name="$(auth_user || true)"
 
   echo "time            : $(date '+%Y-%m-%d %H:%M:%S %Z (%z)')"
   echo "domain          : $DOMAIN"
   echo "resolve ip      : $IP"
-  echo "config          : $CONF"
+  echo "config file     : $CONF ($(path_state "$CONF"))"
+  echo "auth file       : $AUTH_FILE ($(path_state "$AUTH_FILE"))"
+  echo "cert file       : $CERT_FILE ($(path_state "$CERT_FILE"))"
+  echo "key file        : $KEY_FILE ($(path_state "$KEY_FILE"))"
+  echo "data dir        : $DATA_DIR ($(path_state "$DATA_DIR"))"
+  echo "upload dir      : $UPLOAD_DIR ($(path_state "$UPLOAD_DIR"))"
+  echo "free space      : $(free_space "$DATA_DIR")"
   nginx -t >/dev/null 2>&1 && echo "nginx test      : ok" || echo "nginx test      : fail"
   pgrep -x nginx >/dev/null 2>&1 && echo "nginx process   : ok ($(pgrep -xc nginx))" || echo "nginx process   : fail"
-  echo "auth user       : $(auth_user)"
-  echo "root items      : $(find "$DATA_DIR" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | awk '{print $1}')"
-  echo "upload files    : $(find "$UPLOAD_DIR" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l | awk '{print $1}')"
-  echo "upload size     : $(du -sh "$UPLOAD_DIR" 2>/dev/null | awk '{print $1}')"
+  echo "auth user       : ${auth_user_name:-none}"
+  echo "root items      : $(count_entries "$DATA_DIR")"
+  echo "upload files    : $(count_entries "$UPLOAD_DIR" files)"
+  echo "upload size     : $(dir_size "$UPLOAD_DIR")"
   echo "root page       : $(http_code "$url_root")"
   echo "uploads page    : $(http_code "$url_uploads")"
   echo "listing json    : $(http_code "$url_listing")"
   echo "upload page     : $(http_code "$url_upload") (expect 401)"
   echo "listing count   : ${listing_count:-0}"
+}
+
+list_dir() {
+  local target="${1:-root}"
+  local dir
+
+  dir="$(resolve_dir "$target")"
+  if [[ ! -d "$dir" ]]; then
+    echo "directory not found: $dir" >&2
+    exit 1
+  fi
+
+  echo "directory       : $dir"
+  ls -lah "$dir"
+}
+
+show_logs() {
+  local target="${1:-access}"
+  local lines="${2:-50}"
+  local file
+
+  case "$target" in
+    access)
+      file="$ACCESS_LOG"
+      ;;
+    error)
+      file="$ERROR_LOG"
+      ;;
+    *)
+      echo "unknown log target: $target" >&2
+      echo "use: tfw logs [access|error] [lines]" >&2
+      exit 1
+      ;;
+  esac
+
+  [[ "$lines" =~ ^[0-9]+$ ]] || {
+    echo "lines must be an integer" >&2
+    exit 1
+  }
+
+  [[ -f "$file" ]] || {
+    echo "log not found: $file" >&2
+    exit 1
+  }
+
+  echo "log file        : $file"
+  echo "lines           : $lines"
+  tail -n "$lines" "$file"
 }
 
 restart_nginx() {
@@ -98,22 +272,34 @@ rotate_passwd() {
   need openssl
   need curl
 
-  local user input_user password password2 backup hash code
-  user="$(auth_user)"
+  local user input_user password password2 backup hash code current_user
+  [[ $# -le 2 ]] || {
+    echo "use: tfw passwd [user] [password]" >&2
+    exit 1
+  }
+
+  current_user="$(auth_user || true)"
+  user="${1:-$current_user}"
   user="${user:-uploader}"
+  password="${2:-}"
 
   if [[ -t 0 ]]; then
-    read -r -p "user [${user}]: " input_user
-    user="${input_user:-$user}"
-    read -r -s -p "new password (empty = random): " password
-    printf '\n'
-    if [[ -n "${password:-}" ]]; then
-      read -r -s -p "confirm: " password2
+    if [[ $# -eq 0 ]]; then
+      read -r -p "user [${user}]: " input_user
+      user="${input_user:-$user}"
+    fi
+
+    if [[ $# -lt 2 ]]; then
+      read -r -s -p "new password (empty = random): " password
       printf '\n'
-      [[ "$password" == "$password2" ]] || {
-        echo "password mismatch" >&2
-        exit 1
-      }
+      if [[ -n "${password:-}" ]]; then
+        read -r -s -p "confirm: " password2
+        printf '\n'
+        [[ "$password" == "$password2" ]] || {
+          echo "password mismatch" >&2
+          exit 1
+        }
+      fi
     fi
   fi
 
@@ -121,30 +307,58 @@ rotate_passwd() {
     password="$(openssl rand -base64 18 | tr -d '=+/\n' | cut -c1-20)"
   fi
 
-  backup="${AUTH_FILE}.bak-$(date +%Y%m%d%H%M%S)"
-  cp "$AUTH_FILE" "$backup"
+  backup=""
+  if [[ -f "$AUTH_FILE" ]]; then
+    backup="${AUTH_FILE}.bak-$(date +%Y%m%d%H%M%S)"
+    cp "$AUTH_FILE" "$backup"
+  else
+    mkdir -p "$(dirname "$AUTH_FILE")"
+  fi
+
   hash="$(openssl passwd -apr1 "$password")"
+  umask 077
   printf '%s:%s\n' "$user" "$hash" > "$AUTH_FILE"
 
   code="$(http_code "$url_upload" "${user}:${password}")"
   if [[ "$code" != "200" ]]; then
-    cp "$backup" "$AUTH_FILE"
+    if [[ -n "$backup" ]]; then
+      cp "$backup" "$AUTH_FILE"
+    else
+      rm -f "$AUTH_FILE"
+    fi
     echo "password verify failed: $code, rolled back" >&2
     exit 1
   fi
 
   echo "user            : $user"
   echo "password        : $password"
-  echo "backup          : $backup"
+  echo "backup          : ${backup:-not created}"
   echo "verify          : $code"
+}
+
+show_cert() {
+  echo "acme bin        : $ACME_BIN ($(path_state "$ACME_BIN"))"
+  echo "acme home       : $ACME_HOME ($(path_state "$ACME_HOME"))"
+  echo "cert file       : $CERT_FILE ($(path_state "$CERT_FILE"))"
+  echo "key file        : $KEY_FILE ($(path_state "$KEY_FILE"))"
 }
 
 usage() {
   cat <<'EOF'
-tfw time
-tfw status
-tfw restart
-tfw passwd
+tfw time                         show host time
+tfw info                         show config paths and local files
+tfw urls                         show public URLs
+tfw cert                         show certificate paths
+tfw status                       run nginx and HTTP checks
+tfw test                         run nginx -t
+tfw ls [root|uploads|/path]      list files in a directory
+tfw logs [access|error] [lines]  tail nginx logs
+tfw restart                      test and restart/reload nginx
+tfw passwd [user] [password]     rotate upload auth password
+
+Config source:
+  default runtime config: /etc/tfw/tfw.conf
+  override with: TFW_CONFIG=/path/to/tfw.conf tfw info
 EOF
 }
 
@@ -152,14 +366,35 @@ case "${1:-}" in
   time)
     show_time
     ;;
+  info)
+    show_info
+    ;;
+  urls|url)
+    show_urls
+    ;;
+  cert|certs)
+    show_cert
+    ;;
   status)
     show_status
+    ;;
+  test|nginx-test)
+    test_nginx
+    ;;
+  ls|list)
+    shift
+    list_dir "${1:-root}"
+    ;;
+  logs|log)
+    shift
+    show_logs "${1:-access}" "${2:-50}"
     ;;
   restart)
     restart_nginx
     ;;
   passwd)
-    rotate_passwd
+    shift
+    rotate_passwd "$@"
     ;;
   ""|help|-h|--help)
     usage

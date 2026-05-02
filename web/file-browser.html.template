@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="${LANG_HTML}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>file.jayha.top 文件列表</title>
+  <title>${SITE_TITLE} ${BROWSER_TITLE_SUFFIX}</title>
   <style>
     :root {
       color-scheme: light;
@@ -25,7 +25,7 @@
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-family: "Noto Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
       color: var(--text);
       background:
         radial-gradient(circle at top left, rgba(179, 77, 34, 0.16), transparent 34%),
@@ -293,33 +293,61 @@
 <body>
   <main>
     <section class="hero">
-      <div class="eyebrow" id="eyebrow">文件目录</div>
-      <h1 id="title">文件列表</h1>
-      <p id="subtitle">正在读取当前目录。</p>
+      <div class="eyebrow" id="eyebrow">${BROWSER_EYEBROW_ROOT}</div>
+      <h1 id="title">${BROWSER_MAIN_TITLE}</h1>
+      <p id="subtitle">${BROWSER_LOADING}</p>
       <div class="nav">
-        <a class="nav-link" href="/">根目录</a>
-        <a class="nav-link" href="/uploads/">上传目录</a>
-        <a class="nav-link" href="/upload">上传文件</a>
-        <a class="nav-link" id="parent-link" href="/" hidden>上一级</a>
+        <a class="nav-link" href="/">${NAV_ROOT}</a>
+        <a class="nav-link" href="/uploads/">${NAV_UPLOADS}</a>
+        <a class="nav-link" href="/upload">${NAV_UPLOAD}</a>
+        <a class="nav-link" id="parent-link" href="/" hidden>${NAV_PARENT}</a>
       </div>
     </section>
     <section class="panel">
       <div class="toolbar">
         <div class="field">
-          <label for="filter">筛选文件名</label>
-          <input id="filter" type="search" placeholder="输入关键字，按名称过滤">
+          <label for="filter">${FILTER_LABEL}</label>
+          <input id="filter" type="search" placeholder="${FILTER_PLACEHOLDER}">
         </div>
         <div class="stats">
-          <div class="chip" id="count-chip">0 个项目</div>
+          <div class="chip" id="count-chip">0 ${COUNT_SUFFIX}</div>
           <div class="chip" id="path-chip">/</div>
         </div>
       </div>
-      <div class="state" id="state">正在加载目录数据…</div>
+      <div class="state" id="state">${BROWSER_LOADING}</div>
       <ul class="list" id="list" hidden></ul>
     </section>
   </main>
 
   <script>
+    const I18N = {
+      unknownSize: ${JS_UNKNOWN_SIZE},
+      unknownTime: ${JS_UNKNOWN_TIME},
+      eyebrowRoot: ${JS_EYEBROW_ROOT},
+      eyebrowChild: ${JS_EYEBROW_CHILD},
+      titleRoot: ${JS_TITLE_ROOT},
+      titlePrefix: ${JS_TITLE_PREFIX},
+      subtitle: ${JS_SUBTITLE},
+      stateLoading: ${JS_STATE_LOADING},
+      stateNoMatch: ${JS_STATE_NO_MATCH},
+      stateEmpty: ${JS_STATE_EMPTY},
+      stateLoadFail: ${JS_STATE_LOAD_FAIL},
+      itemCountSuffix: ${JS_ITEM_COUNT_SUFFIX},
+      typeDir: "DIR",
+      typeFile: "FILE",
+      labelDir: ${JS_LABEL_DIR},
+      labelEnter: ${JS_LABEL_ENTER},
+      labelOpen: ${JS_LABEL_OPEN},
+      labelCopy: ${JS_LABEL_COPY},
+      labelCopied: ${JS_LABEL_COPIED},
+      labelCopyFail: ${JS_LABEL_COPY_FAIL},
+      labelDownload: ${JS_LABEL_DOWNLOAD}
+    };
+
+    const siteTitle = ${JS_SITE_TITLE};
+    const titleSuffix = ${JS_TITLE_SUFFIX};
+    const localeTag = ${JS_LOCALE};
+
     const title = document.getElementById("title");
     const subtitle = document.getElementById("subtitle");
     const eyebrow = document.getElementById("eyebrow");
@@ -336,7 +364,7 @@
 
     function formatBytes(bytes) {
       if (typeof bytes !== "number" || Number.isNaN(bytes)) {
-        return "未知大小";
+        return I18N.unknownSize;
       }
 
       const units = ["B", "KB", "MB", "GB", "TB"];
@@ -353,7 +381,7 @@
 
     function formatTime(value) {
       if (!value) {
-        return "未知时间";
+        return I18N.unknownTime;
       }
 
       const date = new Date(value);
@@ -361,7 +389,7 @@
         return String(value);
       }
 
-      return new Intl.DateTimeFormat("zh-CN", {
+      return new Intl.DateTimeFormat(localeTag, {
         dateStyle: "medium",
         timeStyle: "short"
       }).format(date);
@@ -383,12 +411,12 @@
     }
 
     function updateHeader() {
-      const label = currentPath === "/" ? "根目录" : currentPath;
-      eyebrow.textContent = currentPath === "/" ? "公开文件目录" : "公开子目录";
-      title.textContent = currentPath === "/" ? "文件列表" : `目录 ${currentPath}`;
-      subtitle.textContent = "页面样式已统一，文件仍然保持原来的公开直链访问方式。";
+      const label = currentPath === "/" ? "/" : currentPath;
+      eyebrow.textContent = currentPath === "/" ? I18N.eyebrowRoot : I18N.eyebrowChild;
+      title.textContent = currentPath === "/" ? I18N.titleRoot : `${I18N.titlePrefix} ${currentPath}`;
+      subtitle.textContent = I18N.subtitle;
       pathChip.textContent = label;
-      document.title = `${label} | file.jayha.top`;
+      document.title = `${label} | ${siteTitle} ${titleSuffix}`;
 
       if (currentPath === "/") {
         parentLink.hidden = true;
@@ -411,10 +439,10 @@
     function renderList() {
       const keyword = filterInput.value.trim().toLowerCase();
       const filtered = items.filter((item) => item.name.toLowerCase().includes(keyword));
-      countChip.textContent = `${filtered.length} 个项目`;
+      countChip.textContent = `${filtered.length} ${I18N.itemCountSuffix}`;
 
       if (filtered.length === 0) {
-        setState(keyword ? "没有匹配这个关键字的文件。" : "当前目录还没有文件。");
+        setState(keyword ? I18N.stateNoMatch : I18N.stateEmpty);
         return;
       }
 
@@ -423,19 +451,19 @@
       list.innerHTML = filtered.map((item, index) => {
         const isDirectory = item.type === "directory";
         const href = joinPath(currentPath, item.name, isDirectory);
-        const primaryLabel = isDirectory ? "进入目录" : "打开文件";
-        const secondaryLabel = isDirectory ? "复制路径" : "下载";
+        const primaryLabel = isDirectory ? I18N.labelEnter : I18N.labelOpen;
+        const secondaryLabel = isDirectory ? I18N.labelCopy : I18N.labelDownload;
         const secondaryAttrs = isDirectory
           ? `data-copy="${escapeHtml(location.origin + href)}"`
           : `href="${escapeHtml(href)}" download`;
-        const sizeText = isDirectory ? "目录" : formatBytes(item.size);
+        const sizeText = isDirectory ? I18N.labelDir : formatBytes(item.size);
         const timeText = formatTime(item.mtime);
 
         return `
           <li class="item" style="animation-delay:${index * 28}ms">
             <div class="item-head">
               <div class="title-wrap">
-                <div class="type ${isDirectory ? "dir" : "file"}">${isDirectory ? "DIR" : "FILE"}</div>
+                <div class="type ${isDirectory ? "dir" : "file"}">${isDirectory ? I18N.typeDir : I18N.typeFile}</div>
                 <h2 class="name"><a href="${escapeHtml(href)}">${escapeHtml(item.name)}${isDirectory ? "/" : ""}</a></h2>
                 <div class="meta">
                   <span>${sizeText}</span>
@@ -460,12 +488,12 @@
           const value = link.getAttribute("data-copy");
           try {
             await navigator.clipboard.writeText(value);
-            link.textContent = "已复制";
+            link.textContent = I18N.labelCopied;
             window.setTimeout(() => {
-              link.textContent = "复制路径";
+              link.textContent = I18N.labelCopy;
             }, 1200);
           } catch (error) {
-            link.textContent = "复制失败";
+            link.textContent = I18N.labelCopyFail;
           }
         });
       });
@@ -473,7 +501,7 @@
 
     async function loadItems() {
       updateHeader();
-      setState("正在加载目录数据…");
+      setState(I18N.stateLoading);
 
       try {
         const response = await fetch(dataUrl, { cache: "no-store" });
@@ -486,14 +514,14 @@
           .filter((item) => item && typeof item.name === "string" && item.name !== "." && item.name !== "..")
           .sort((left, right) => {
             if (left.type === right.type) {
-              return left.name.localeCompare(right.name, "zh-CN", { numeric: true, sensitivity: "base" });
+              return left.name.localeCompare(right.name, localeTag, { numeric: true, sensitivity: "base" });
             }
             return left.type === "directory" ? -1 : 1;
           });
 
         renderList();
       } catch (error) {
-        setState(`目录读取失败：${error.message}`);
+        setState(`${I18N.stateLoadFail}: ${error.message}`);
       }
     }
 

@@ -3,15 +3,286 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-NGINX_CONF_SRC="${ROOT_DIR}/nginx/file.conf"
-FILE_BROWSER_SRC="${ROOT_DIR}/web/file-browser.html"
-FILE_UPLOAD_SRC="${ROOT_DIR}/web/file-upload.html"
-TFW_SRC="${ROOT_DIR}/bin/tfw"
-HTPASSWD_EXAMPLE="${ROOT_DIR}/templates/file-upload.htpasswd.example"
+NGINX_TEMPLATE="${ROOT_DIR}/nginx/file.conf.template"
+ACME_TEMPLATE="${ROOT_DIR}/nginx/acme-challenge.conf.template"
+NGINX_MAIN_TEMPLATE="${ROOT_DIR}/nginx/nginx.conf.template"
+BROWSER_TEMPLATE="${ROOT_DIR}/web/file-browser.html.template"
+UPLOAD_TEMPLATE="${ROOT_DIR}/web/file-upload.html.template"
+TFW_TEMPLATE="${ROOT_DIR}/templates/tfw.conf.template"
+TFW_BIN_SRC="${ROOT_DIR}/bin/tfw"
+
+ACTION="${1:-install}"
+INSTALL_MODE="${INSTALL_MODE:-}"
+LANGUAGE="${LANGUAGE:-}"
+DOMAIN="${DOMAIN:-}"
+SITE_TITLE="${SITE_TITLE:-}"
+TFW_USER="${TFW_USER:-}"
+DATA_DIR="${DATA_DIR:-}"
+SITE_BASE_DIR="${SITE_BASE_DIR:-}"
+SITE_DIR="${SITE_DIR:-}"
+ACME_WEBROOT="${ACME_WEBROOT:-}"
+ACME_EMAIL="${ACME_EMAIL:-}"
+AUTH_USER="${AUTH_USER:-}"
+AUTH_PASSWORD="${AUTH_PASSWORD:-}"
+MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-}"
+IP="${IP:-127.0.0.1}"
+AUTO_INSTALL_DEPS="${AUTO_INSTALL_DEPS:-1}"
+INSTALL_ACME="${INSTALL_ACME:-1}"
+
+CONF_DIR="/etc/nginx/conf.d"
+CONF_FILE=""
+ACME_CONF_FILE=""
+TFW_CONFIG_DIR="/etc/tfw"
+TFW_CONFIG_FILE="${TFW_CONFIG_DIR}/tfw.conf"
+ACME_HOME="/root/.acme.sh"
+ACME_BIN="${ACME_HOME}/acme.sh"
+ACCESS_LOG=""
+ERROR_LOG=""
+UNINSTALL_KEEP_DATA="${UNINSTALL_KEEP_DATA:-1}"
+UNINSTALL_KEEP_CERTS="${UNINSTALL_KEEP_CERTS:-1}"
+
+LANG_HTML="en"
+JS_LOCALE='"en-US"'
 
 need_root() {
   [[ "$(id -u)" -eq 0 ]] || {
     echo "need root" >&2
+    exit 1
+  }
+}
+
+msg() {
+  local key="$1"
+  case "$LANGUAGE" in
+    zh)
+      case "$key" in
+        choose_lang) echo "请选择安装语言 / Choose installation language: [1] 中文 [2] English" ;;
+        choose_mode) echo "请选择安装模式: [1] 交互式安装 [2] 一键默认安装" ;;
+        start) echo "开始安装模板项目..." ;;
+        upgrade) echo "开始升级已安装站点..." ;;
+        uninstall) echo "开始卸载已安装站点..." ;;
+        deps) echo "检查并安装依赖..." ;;
+        deps_fail) echo "无法自动安装依赖，请手动安装后重试。" ;;
+        issue_acme) echo "正在使用 acme.sh 申请证书..." ;;
+        install_conf) echo "正在写入站点配置与页面..." ;;
+        gen_auth) echo "正在生成上传认证文件..." ;;
+        done) echo "安装完成。" ;;
+        next) echo "建议下一步执行: tfw info && tfw status" ;;
+        uninstall_done) echo "卸载完成。" ;;
+        uninstall_keep_data) echo "已保留数据目录。" ;;
+        uninstall_keep_certs) echo "已保留证书目录。" ;;
+        upgrade_done) echo "升级完成。" ;;
+        ask_domain) echo "输入绑定域名" ;;
+        ask_title) echo "输入站点标题" ;;
+        ask_user) echo "输入 Nginx 运行用户" ;;
+        ask_data) echo "输入数据目录" ;;
+        ask_site_base) echo "输入站点资源根目录" ;;
+        ask_acme_webroot) echo "输入 ACME challenge webroot" ;;
+        ask_acme_email) echo "输入证书通知邮箱" ;;
+        ask_auth_user) echo "输入上传用户名" ;;
+        ask_auth_password) echo "输入上传密码（留空则随机生成）" ;;
+        ask_upload_size) echo "输入单文件上传大小上限，例如 2g" ;;
+        bad_domain) echo "域名不能为空，且不能包含空格。" ;;
+        acme_skip) echo "跳过 acme.sh 证书申请，将保留证书路径配置但不签发证书。" ;;
+        tls_missing) echo "未发现可用证书文件，当前保留 ACME challenge 配置。" ;;
+        tls_next) echo "请把证书放到站点 certs 目录后重新执行安装，或手动切换到正式 HTTPS 配置。" ;;
+        acme_install) echo "正在安装 acme.sh..." ;;
+        nginx_main_hint) echo "主 nginx.conf 模板位于" ;;
+        summary) echo "安装参数如下：" ;;
+        mode_default) echo "使用一键默认安装参数。" ;;
+        mode_interactive) echo "进入交互式安装。" ;;
+        missing_runtime) echo "未找到现有运行配置，无法执行 upgrade 或 uninstall。" ;;
+        keep_hint) echo "默认保留数据和证书；如需删除可设置 UNINSTALL_KEEP_DATA=0 或 UNINSTALL_KEEP_CERTS=0。" ;;
+      esac
+      ;;
+    *)
+      case "$key" in
+        choose_lang) echo "Choose installation language: [1] Chinese [2] English" ;;
+        choose_mode) echo "Choose installation mode: [1] Interactive [2] One-click defaults" ;;
+        start) echo "Starting template project installation..." ;;
+        upgrade) echo "Starting upgrade for the installed site..." ;;
+        uninstall) echo "Starting uninstall for the installed site..." ;;
+        deps) echo "Checking and installing dependencies..." ;;
+        deps_fail) echo "Failed to auto-install dependencies. Install them manually and retry." ;;
+        issue_acme) echo "Issuing certificate with acme.sh..." ;;
+        install_conf) echo "Rendering site configuration and pages..." ;;
+        gen_auth) echo "Generating upload auth file..." ;;
+        done) echo "Installation completed." ;;
+        next) echo "Recommended next step: tfw info && tfw status" ;;
+        uninstall_done) echo "Uninstall completed." ;;
+        uninstall_keep_data) echo "Data directory was kept." ;;
+        uninstall_keep_certs) echo "Certificate directory was kept." ;;
+        upgrade_done) echo "Upgrade completed." ;;
+        ask_domain) echo "Enter the domain name" ;;
+        ask_title) echo "Enter the site title" ;;
+        ask_user) echo "Enter the Nginx runtime user" ;;
+        ask_data) echo "Enter the data directory" ;;
+        ask_site_base) echo "Enter the site asset base directory" ;;
+        ask_acme_webroot) echo "Enter the ACME challenge webroot" ;;
+        ask_acme_email) echo "Enter the certificate notification email" ;;
+        ask_auth_user) echo "Enter the upload username" ;;
+        ask_auth_password) echo "Enter the upload password (leave empty for random)" ;;
+        ask_upload_size) echo "Enter the max upload size per file, for example 2g" ;;
+        bad_domain) echo "Domain must not be empty and must not contain spaces." ;;
+        acme_skip) echo "Skipping acme.sh issuance. Certificate paths will remain configured but no cert will be issued." ;;
+        tls_missing) echo "TLS assets were not found. The ACME challenge config is kept in place." ;;
+        tls_next) echo "Place the certificate files in the site certs directory, then rerun the installer or switch to the final HTTPS config manually." ;;
+        acme_install) echo "Installing acme.sh..." ;;
+        nginx_main_hint) echo "Main nginx.conf template:" ;;
+        summary) echo "Installation parameters:" ;;
+        mode_default) echo "Using one-click default installation parameters." ;;
+        mode_interactive) echo "Entering interactive installation." ;;
+        missing_runtime) echo "Existing runtime config was not found, so upgrade or uninstall cannot continue." ;;
+        keep_hint) echo "Data and certs are kept by default. Set UNINSTALL_KEEP_DATA=0 or UNINSTALL_KEEP_CERTS=0 to remove them." ;;
+      esac
+      ;;
+  esac
+}
+
+usage() {
+  cat <<'EOF'
+bash scripts/install.sh [install|upgrade|uninstall]
+
+Environment examples:
+  DOMAIN=files.example.com INSTALL_MODE=default LANGUAGE=zh bash scripts/install.sh install
+  LANGUAGE=zh bash scripts/install.sh upgrade
+  LANGUAGE=zh UNINSTALL_KEEP_DATA=1 UNINSTALL_KEEP_CERTS=1 bash scripts/install.sh uninstall
+EOF
+}
+
+prompt() {
+  local text="$1"
+  local default="${2:-}"
+  local answer
+  if [[ -n "$default" ]]; then
+    read -r -p "$text [$default]: " answer
+    printf '%s' "${answer:-$default}"
+  else
+    read -r -p "$text: " answer
+    printf '%s' "$answer"
+  fi
+}
+
+prompt_secret() {
+  local text="$1"
+  local answer
+  read -r -s -p "$text: " answer
+  printf '\n' >&2
+  printf '%s' "$answer"
+}
+
+load_existing_runtime_config() {
+  if [[ -f "$TFW_CONFIG_FILE" ]]; then
+    # shellcheck disable=SC1090
+    . "$TFW_CONFIG_FILE"
+    return 0
+  fi
+  return 1
+}
+
+choose_language() {
+  if [[ -n "$LANGUAGE" ]]; then
+    return 0
+  fi
+
+  local answer
+  echo "$(msg choose_lang)"
+  read -r answer
+  case "$answer" in
+    1|zh|ZH|cn|CN)
+      LANGUAGE="zh"
+      ;;
+    *)
+      LANGUAGE="en"
+      ;;
+  esac
+}
+
+choose_install_mode() {
+  if [[ -n "$INSTALL_MODE" ]]; then
+    return 0
+  fi
+
+  local answer
+  echo "$(msg choose_mode)"
+  read -r answer
+  case "$answer" in
+    1|interactive)
+      INSTALL_MODE="interactive"
+      ;;
+    *)
+      INSTALL_MODE="default"
+      ;;
+  esac
+}
+
+detect_nginx_user() {
+  if id -u www-data >/dev/null 2>&1; then
+    printf '%s\n' "www-data"
+  elif id -u nginx >/dev/null 2>&1; then
+    printf '%s\n' "nginx"
+  else
+    printf '%s\n' "www-data"
+  fi
+}
+
+apply_defaults() {
+  SITE_TITLE="${SITE_TITLE:-TFW File Server}"
+  TFW_USER="${TFW_USER:-$(detect_nginx_user)}"
+  DATA_DIR="${DATA_DIR:-/srv/tfw/data}"
+  UPLOAD_DIR="${DATA_DIR}/uploads"
+  SITE_BASE_DIR="${SITE_BASE_DIR:-/etc/tfw/sites}"
+  SITE_DIR="${SITE_DIR:-$SITE_BASE_DIR/$DOMAIN}"
+  ACME_WEBROOT="${ACME_WEBROOT:-/var/www/_acme-challenge}"
+  ACME_EMAIL="${ACME_EMAIL:-admin@$DOMAIN}"
+  AUTH_USER="${AUTH_USER:-uploader}"
+  MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-2g}"
+  CONF_FILE="${CONF_FILE:-$CONF_DIR/tfw-$DOMAIN.conf}"
+  ACME_CONF_FILE="${ACME_CONF_FILE:-$CONF_DIR/tfw-$DOMAIN-acme.conf}"
+  ACCESS_LOG="/var/log/nginx/$DOMAIN.access.log"
+  ERROR_LOG="/var/log/nginx/$DOMAIN.error.log"
+}
+
+restore_runtime_derived_values() {
+  CONF_FILE="${CONF_FILE:-$CONF_DIR/tfw-$DOMAIN.conf}"
+  ACME_CONF_FILE="${ACME_CONF_FILE:-$CONF_DIR/tfw-$DOMAIN-acme.conf}"
+  UPLOAD_DIR="${UPLOAD_DIR:-$DATA_DIR/uploads}"
+  SITE_DIR="${SITE_DIR:-$SITE_BASE_DIR/$DOMAIN}"
+  ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/$DOMAIN.access.log}"
+  ERROR_LOG="${ERROR_LOG:-/var/log/nginx/$DOMAIN.error.log}"
+}
+
+collect_interactive_input() {
+  echo "$(msg mode_interactive)"
+
+  DOMAIN="$(prompt "$(msg ask_domain)" "${DOMAIN:-}")"
+  SITE_TITLE="$(prompt "$(msg ask_title)" "${SITE_TITLE:-TFW File Server}")"
+  TFW_USER="$(prompt "$(msg ask_user)" "${TFW_USER:-$(detect_nginx_user)}")"
+  DATA_DIR="$(prompt "$(msg ask_data)" "${DATA_DIR:-/srv/tfw/data}")"
+  SITE_BASE_DIR="$(prompt "$(msg ask_site_base)" "${SITE_BASE_DIR:-/etc/tfw/sites}")"
+  SITE_DIR="${SITE_BASE_DIR}/$DOMAIN"
+  ACME_WEBROOT="$(prompt "$(msg ask_acme_webroot)" "${ACME_WEBROOT:-/var/www/_acme-challenge}")"
+  ACME_EMAIL="$(prompt "$(msg ask_acme_email)" "${ACME_EMAIL:-admin@$DOMAIN}")"
+  AUTH_USER="$(prompt "$(msg ask_auth_user)" "${AUTH_USER:-uploader}")"
+  AUTH_PASSWORD="$(prompt_secret "$(msg ask_auth_password)")"
+  MAX_UPLOAD_SIZE="$(prompt "$(msg ask_upload_size)" "${MAX_UPLOAD_SIZE:-2g}")"
+}
+
+set_default_mode_values() {
+  echo "$(msg mode_default)"
+  if [[ -z "$DOMAIN" ]]; then
+    if [[ -t 0 ]]; then
+      DOMAIN="$(prompt "$(msg ask_domain)" "")"
+    else
+      echo "$(msg bad_domain)" >&2
+      exit 1
+    fi
+  fi
+}
+
+validate_inputs() {
+  [[ -n "$DOMAIN" && "$DOMAIN" != *" "* ]] || {
+    echo "$(msg bad_domain)" >&2
     exit 1
   }
 }
@@ -23,25 +294,524 @@ backup_if_exists() {
   fi
 }
 
-need_root
+sed_escape() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//&/\\&}"
+  value="${value//|/\\|}"
+  printf '%s' "$value"
+}
 
-mkdir -p /etc/nginx/conf.d
-mkdir -p /etc/nginx/jayha.top
+js_string() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\'/\\\'}"
+  value="${value//$'\n'/\\n}"
+  printf "'%s'" "$value"
+}
 
-backup_if_exists /etc/nginx/conf.d/file.conf
-backup_if_exists /etc/nginx/jayha.top/file-browser.html
-backup_if_exists /etc/nginx/jayha.top/file-upload.html
-backup_if_exists /usr/local/bin/tfw
+detect_pkg_manager() {
+  if command -v apt-get >/dev/null 2>&1; then
+    echo apt
+  elif command -v dnf >/dev/null 2>&1; then
+    echo dnf
+  elif command -v yum >/dev/null 2>&1; then
+    echo yum
+  else
+    echo none
+  fi
+}
 
-install -m 0644 "$NGINX_CONF_SRC" /etc/nginx/conf.d/file.conf
-install -m 0644 "$FILE_BROWSER_SRC" /etc/nginx/jayha.top/file-browser.html
-install -m 0644 "$FILE_UPLOAD_SRC" /etc/nginx/jayha.top/file-upload.html
-install -m 0755 "$TFW_SRC" /usr/local/bin/tfw
+install_dependencies() {
+  local manager missing=()
+  local dep
 
-if [[ ! -f /etc/nginx/jayha.top/file-upload.htpasswd ]]; then
-  install -m 0644 "$HTPASSWD_EXAMPLE" /etc/nginx/jayha.top/file-upload.htpasswd
-  echo "created /etc/nginx/jayha.top/file-upload.htpasswd from example"
-fi
+  for dep in nginx curl openssl sed awk grep find tail ls; do
+    if ! command -v "$dep" >/dev/null 2>&1; then
+      missing+=("$dep")
+    fi
+  done
 
-nginx -t
-echo "installed. run: tfw status"
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  [[ "$AUTO_INSTALL_DEPS" == "1" ]] || {
+    printf 'missing dependencies: %s\n' "${missing[*]}" >&2
+    exit 1
+  }
+
+  echo "$(msg deps)"
+  manager="$(detect_pkg_manager)"
+  case "$manager" in
+    apt)
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y nginx curl openssl apache2-utils
+      ;;
+    dnf)
+      dnf install -y nginx curl openssl httpd-tools
+      ;;
+    yum)
+      yum install -y nginx curl openssl httpd-tools
+      ;;
+    *)
+      echo "$(msg deps_fail)" >&2
+      exit 1
+      ;;
+  esac
+}
+
+ensure_dirs() {
+  mkdir -p \
+    "$CONF_DIR" \
+    "$TFW_CONFIG_DIR" \
+    "$SITE_DIR" \
+    "$SITE_DIR/certs" \
+    "$DATA_DIR" \
+    "$UPLOAD_DIR" \
+    "$ACME_WEBROOT/.well-known/acme-challenge"
+
+  chmod 0755 "$DATA_DIR" "$UPLOAD_DIR"
+  chmod 0700 "$SITE_DIR/certs"
+
+  if id -u "$TFW_USER" >/dev/null 2>&1; then
+    chown -R "$TFW_USER":"$(id -gn "$TFW_USER")" "$DATA_DIR"
+  fi
+}
+
+random_password() {
+  openssl rand -base64 18 | tr -d '=+/\n' | cut -c1-20
+}
+
+render_template() {
+  local src="$1"
+  local dest="$2"
+  local tmp
+
+  tmp="$(mktemp)"
+  cp "$src" "$tmp"
+
+  sed -i \
+    -e "s|\${DOMAIN}|$(sed_escape "$DOMAIN")|g" \
+    -e "s|\${SITE_TITLE}|$(sed_escape "$SITE_TITLE")|g" \
+    -e "s|\${LANG_HTML}|$(sed_escape "$LANG_HTML")|g" \
+    -e "s|\${CONF}|$(sed_escape "$CONF_FILE")|g" \
+    -e "s|\${SITE_DIR}|$(sed_escape "$SITE_DIR")|g" \
+    -e "s|\${AUTH_FILE}|$(sed_escape "$SITE_DIR/file-upload.htpasswd")|g" \
+    -e "s|\${DATA_DIR}|$(sed_escape "$DATA_DIR")|g" \
+    -e "s|\${UPLOAD_DIR}|$(sed_escape "$UPLOAD_DIR")|g" \
+    -e "s|\${BROWSER_HTML}|$(sed_escape "$SITE_DIR/file-browser.html")|g" \
+    -e "s|\${UPLOAD_HTML}|$(sed_escape "$SITE_DIR/file-upload.html")|g" \
+    -e "s|\${ACCESS_LOG}|$(sed_escape "$ACCESS_LOG")|g" \
+    -e "s|\${ERROR_LOG}|$(sed_escape "$ERROR_LOG")|g" \
+    -e "s|\${ACME_WEBROOT}|$(sed_escape "$ACME_WEBROOT")|g" \
+    -e "s|\${CERT_FILE}|$(sed_escape "$SITE_DIR/certs/fullchain.cer")|g" \
+    -e "s|\${KEY_FILE}|$(sed_escape "$SITE_DIR/certs/$DOMAIN.key")|g" \
+    -e "s|\${MAX_UPLOAD_SIZE}|$(sed_escape "$MAX_UPLOAD_SIZE")|g" \
+    -e "s|\${IP}|$(sed_escape "$IP")|g" \
+    -e "s|\${LANGUAGE}|$(sed_escape "$LANGUAGE")|g" \
+    -e "s|\${ACME_HOME}|$(sed_escape "$ACME_HOME")|g" \
+    -e "s|\${ACME_BIN}|$(sed_escape "$ACME_BIN")|g" \
+    "$tmp"
+
+  install -m 0644 "$tmp" "$dest"
+  rm -f "$tmp"
+}
+
+fill_page_i18n() {
+  local file="$1"
+
+  if [[ "$LANGUAGE" == "zh" ]]; then
+    LANG_HTML="zh-CN"
+    JS_LOCALE='"zh-CN"'
+    sed -i \
+      -e "s|\${BROWSER_TITLE_SUFFIX}|文件列表|g" \
+      -e "s|\${UPLOAD_TITLE_SUFFIX}|上传|g" \
+      -e "s|\${BROWSER_EYEBROW_ROOT}|公开文件目录|g" \
+      -e "s|\${BROWSER_MAIN_TITLE}|文件列表|g" \
+      -e "s|\${BROWSER_LOADING}|正在加载目录数据…|g" \
+      -e "s|\${NAV_ROOT}|根目录|g" \
+      -e "s|\${NAV_UPLOADS}|上传目录|g" \
+      -e "s|\${NAV_UPLOAD}|上传文件|g" \
+      -e "s|\${NAV_PARENT}|上一级|g" \
+      -e "s|\${FILTER_LABEL}|筛选文件名|g" \
+      -e "s|\${FILTER_PLACEHOLDER}|输入关键字，按名称过滤|g" \
+      -e "s|\${COUNT_SUFFIX}|个项目|g" \
+      -e "s|\${UPLOAD_EYEBROW}|上传入口 /upload|g" \
+      -e "s|\${UPLOAD_MAIN_TITLE}|上传到 /uploads/|g" \
+      -e "s|\${UPLOAD_SUBTITLE_PREFIX}|这个页面会把文件直接写入 |g" \
+      -e "s|\${UPLOAD_SUBTITLE_SUFFIX}|，上传完成后可以在公开目录里直接访问。|g" \
+      -e "s|\${UPLOAD_PICK}|选择文件|g" \
+      -e "s|\${UPLOAD_START}|开始上传|g" \
+      -e "s|\${UPLOAD_OPEN_DIR}|打开上传目录|g" \
+      -e "s|\${UPLOAD_HINT}|支持多选；同名文件会被覆盖。当前上限由服务端配置决定。|g" \
+      -e "s|\${UPLOAD_DONE_PREFIX}|上传完成后，文件公开地址是 |g" \
+      -e "s|\${UPLOAD_DONE_SUFFIX}|。|g" \
+      -e "s|\${UPLOAD_FILE_PLACEHOLDER}|文件名|g" \
+      -e "s|\${JS_UNKNOWN_SIZE}|$(js_string "未知大小")|g" \
+      -e "s|\${JS_UNKNOWN_TIME}|$(js_string "未知时间")|g" \
+      -e "s|\${JS_EYEBROW_ROOT}|$(js_string "公开文件目录")|g" \
+      -e "s|\${JS_EYEBROW_CHILD}|$(js_string "公开子目录")|g" \
+      -e "s|\${JS_TITLE_ROOT}|$(js_string "文件列表")|g" \
+      -e "s|\${JS_TITLE_PREFIX}|$(js_string "目录")|g" \
+      -e "s|\${JS_SUBTITLE}|$(js_string "页面样式已统一，文件仍然保持原来的公开直链访问方式。")|g" \
+      -e "s|\${JS_STATE_LOADING}|$(js_string "正在加载目录数据…")|g" \
+      -e "s|\${JS_STATE_NO_MATCH}|$(js_string "没有匹配这个关键字的文件。")|g" \
+      -e "s|\${JS_STATE_EMPTY}|$(js_string "当前目录还没有文件。")|g" \
+      -e "s|\${JS_STATE_LOAD_FAIL}|$(js_string "目录读取失败")|g" \
+      -e "s|\${JS_ITEM_COUNT_SUFFIX}|$(js_string "个项目")|g" \
+      -e "s|\${JS_LABEL_DIR}|$(js_string "目录")|g" \
+      -e "s|\${JS_LABEL_ENTER}|$(js_string "进入目录")|g" \
+      -e "s|\${JS_LABEL_OPEN}|$(js_string "打开文件")|g" \
+      -e "s|\${JS_LABEL_COPY}|$(js_string "复制路径")|g" \
+      -e "s|\${JS_LABEL_COPIED}|$(js_string "已复制")|g" \
+      -e "s|\${JS_LABEL_COPY_FAIL}|$(js_string "复制失败")|g" \
+      -e "s|\${JS_LABEL_DOWNLOAD}|$(js_string "下载")|g" \
+      -e "s|\${JS_SITE_TITLE}|$(js_string "$SITE_TITLE")|g" \
+      -e "s|\${JS_TITLE_SUFFIX}|$(js_string "文件列表")|g" \
+      -e "s|\${JS_LOCALE}|$JS_LOCALE|g" \
+      -e "s|\${JS_UPLOAD_WAIT}|$(js_string "等待上传")|g" \
+      -e "s|\${JS_UPLOAD_PREPARING}|$(js_string "准备上传")|g" \
+      -e "s|\${JS_UPLOAD_UPLOADING}|$(js_string "上传中")|g" \
+      -e "s|\${JS_UPLOAD_DONE}|$(js_string "上传完成")|g" \
+      -e "s|\${JS_UPLOAD_OPEN_FILE}|$(js_string "打开文件")|g" \
+      -e "s|\${JS_UPLOAD_FAILED}|$(js_string "上传失败")|g" \
+      -e "s|\${JS_UPLOAD_NET_ERROR}|$(js_string "网络错误")|g" \
+      -e "s|\${JS_UPLOAD_ABORTED}|$(js_string "上传已取消")|g" \
+      "$file"
+  else
+    LANG_HTML="en"
+    JS_LOCALE='"en-US"'
+    sed -i \
+      -e "s|\${BROWSER_TITLE_SUFFIX}|file index|g" \
+      -e "s|\${UPLOAD_TITLE_SUFFIX}|upload|g" \
+      -e "s|\${BROWSER_EYEBROW_ROOT}|Public file directory|g" \
+      -e "s|\${BROWSER_MAIN_TITLE}|File index|g" \
+      -e "s|\${BROWSER_LOADING}|Loading directory data...|g" \
+      -e "s|\${NAV_ROOT}|Root|g" \
+      -e "s|\${NAV_UPLOADS}|Uploads|g" \
+      -e "s|\${NAV_UPLOAD}|Upload|g" \
+      -e "s|\${NAV_PARENT}|Parent|g" \
+      -e "s|\${FILTER_LABEL}|Filter by name|g" \
+      -e "s|\${FILTER_PLACEHOLDER}|Type to filter by file name|g" \
+      -e "s|\${COUNT_SUFFIX}|items|g" \
+      -e "s|\${UPLOAD_EYEBROW}|Upload entry /upload|g" \
+      -e "s|\${UPLOAD_MAIN_TITLE}|Upload to /uploads/|g" \
+      -e "s|\${UPLOAD_SUBTITLE_PREFIX}|This page writes files directly to |g" \
+      -e "s|\${UPLOAD_SUBTITLE_SUFFIX}| and makes them publicly accessible after upload.|g" \
+      -e "s|\${UPLOAD_PICK}|Choose files|g" \
+      -e "s|\${UPLOAD_START}|Start upload|g" \
+      -e "s|\${UPLOAD_OPEN_DIR}|Open uploads|g" \
+      -e "s|\${UPLOAD_HINT}|Multiple files are supported. Existing files with the same name will be overwritten. The limit is controlled by the server config.|g" \
+      -e "s|\${UPLOAD_DONE_PREFIX}|After upload, the public file URL is |g" \
+      -e "s|\${UPLOAD_DONE_SUFFIX}|.|g" \
+      -e "s|\${UPLOAD_FILE_PLACEHOLDER}|filename|g" \
+      -e "s|\${JS_UNKNOWN_SIZE}|$(js_string "Unknown size")|g" \
+      -e "s|\${JS_UNKNOWN_TIME}|$(js_string "Unknown time")|g" \
+      -e "s|\${JS_EYEBROW_ROOT}|$(js_string "Public file directory")|g" \
+      -e "s|\${JS_EYEBROW_CHILD}|$(js_string "Public subdirectory")|g" \
+      -e "s|\${JS_TITLE_ROOT}|$(js_string "File index")|g" \
+      -e "s|\${JS_TITLE_PREFIX}|$(js_string "Directory")|g" \
+      -e "s|\${JS_SUBTITLE}|$(js_string "The interface is customized while direct file URLs remain unchanged.")|g" \
+      -e "s|\${JS_STATE_LOADING}|$(js_string "Loading directory data...")|g" \
+      -e "s|\${JS_STATE_NO_MATCH}|$(js_string "No files matched this keyword.")|g" \
+      -e "s|\${JS_STATE_EMPTY}|$(js_string "This directory is empty.")|g" \
+      -e "s|\${JS_STATE_LOAD_FAIL}|$(js_string "Failed to load directory")|g" \
+      -e "s|\${JS_ITEM_COUNT_SUFFIX}|$(js_string "items")|g" \
+      -e "s|\${JS_LABEL_DIR}|$(js_string "Directory")|g" \
+      -e "s|\${JS_LABEL_ENTER}|$(js_string "Open folder")|g" \
+      -e "s|\${JS_LABEL_OPEN}|$(js_string "Open file")|g" \
+      -e "s|\${JS_LABEL_COPY}|$(js_string "Copy path")|g" \
+      -e "s|\${JS_LABEL_COPIED}|$(js_string "Copied")|g" \
+      -e "s|\${JS_LABEL_COPY_FAIL}|$(js_string "Copy failed")|g" \
+      -e "s|\${JS_LABEL_DOWNLOAD}|$(js_string "Download")|g" \
+      -e "s|\${JS_SITE_TITLE}|$(js_string "$SITE_TITLE")|g" \
+      -e "s|\${JS_TITLE_SUFFIX}|$(js_string "file index")|g" \
+      -e "s|\${JS_LOCALE}|$JS_LOCALE|g" \
+      -e "s|\${JS_UPLOAD_WAIT}|$(js_string "Waiting")|g" \
+      -e "s|\${JS_UPLOAD_PREPARING}|$(js_string "Preparing upload")|g" \
+      -e "s|\${JS_UPLOAD_UPLOADING}|$(js_string "Uploading")|g" \
+      -e "s|\${JS_UPLOAD_DONE}|$(js_string "Upload complete")|g" \
+      -e "s|\${JS_UPLOAD_OPEN_FILE}|$(js_string "Open file")|g" \
+      -e "s|\${JS_UPLOAD_FAILED}|$(js_string "Upload failed")|g" \
+      -e "s|\${JS_UPLOAD_NET_ERROR}|$(js_string "Network error")|g" \
+      -e "s|\${JS_UPLOAD_ABORTED}|$(js_string "Upload aborted")|g" \
+      "$file"
+  fi
+}
+
+render_pages() {
+  local browser_tmp upload_tmp
+
+  browser_tmp="$(mktemp)"
+  upload_tmp="$(mktemp)"
+  cp "$BROWSER_TEMPLATE" "$browser_tmp"
+  cp "$UPLOAD_TEMPLATE" "$upload_tmp"
+
+  fill_page_i18n "$browser_tmp"
+  fill_page_i18n "$upload_tmp"
+
+  render_template "$browser_tmp" "$SITE_DIR/file-browser.html"
+  render_template "$upload_tmp" "$SITE_DIR/file-upload.html"
+
+  rm -f "$browser_tmp" "$upload_tmp"
+}
+
+write_auth_file() {
+  local password hash old_umask
+  echo "$(msg gen_auth)"
+
+  password="${AUTH_PASSWORD:-$(random_password)}"
+  hash="$(openssl passwd -apr1 "$password")"
+  old_umask="$(umask)"
+  umask 077
+  printf '%s:%s\n' "$AUTH_USER" "$hash" > "$SITE_DIR/file-upload.htpasswd"
+  umask "$old_umask"
+  AUTH_PASSWORD="$password"
+}
+
+install_acme_sh() {
+  [[ "$INSTALL_ACME" == "1" ]] || {
+    echo "$(msg acme_skip)"
+    return 0
+  }
+
+  if [[ -x "$ACME_BIN" ]]; then
+    return 0
+  fi
+
+  echo "$(msg acme_install)"
+  curl -fsSL https://get.acme.sh | sh -s email="$ACME_EMAIL"
+}
+
+render_acme_challenge_conf() {
+  render_template "$ACME_TEMPLATE" "$ACME_CONF_FILE"
+}
+
+render_site_conf() {
+  render_template "$NGINX_TEMPLATE" "$CONF_FILE"
+}
+
+install_tfw_config() {
+  render_template "$TFW_TEMPLATE" "$TFW_CONFIG_FILE"
+}
+
+issue_certificate() {
+  [[ "$INSTALL_ACME" == "1" ]] || return 0
+  [[ -x "$ACME_BIN" ]] || {
+    echo "$(msg acme_skip)"
+    return 0
+  }
+
+  echo "$(msg issue_acme)"
+  "$ACME_BIN" --set-default-ca --server letsencrypt
+  "$ACME_BIN" --issue -d "$DOMAIN" -w "$ACME_WEBROOT"
+  "$ACME_BIN" --install-cert -d "$DOMAIN" \
+    --key-file "$SITE_DIR/certs/$DOMAIN.key" \
+    --fullchain-file "$SITE_DIR/certs/fullchain.cer" \
+    --reloadcmd "nginx -t && (systemctl reload nginx || nginx -s reload)"
+}
+
+have_tls_assets() {
+  [[ -f "$SITE_DIR/certs/fullchain.cer" && -f "$SITE_DIR/certs/$DOMAIN.key" ]]
+}
+
+print_summary() {
+  echo "$(msg summary)"
+  echo "  language        : $LANGUAGE"
+  echo "  mode            : $INSTALL_MODE"
+  echo "  domain          : $DOMAIN"
+  echo "  site title      : $SITE_TITLE"
+  echo "  nginx user      : $TFW_USER"
+  echo "  data dir        : $DATA_DIR"
+  echo "  upload dir      : $UPLOAD_DIR"
+  echo "  site dir        : $SITE_DIR"
+  echo "  acme webroot    : $ACME_WEBROOT"
+  echo "  acme email      : $ACME_EMAIL"
+  echo "  auth user       : $AUTH_USER"
+  echo "  upload max size : $MAX_UPLOAD_SIZE"
+}
+
+install_runtime_files() {
+  echo "$(msg install_conf)"
+
+  backup_if_exists "$CONF_FILE"
+  backup_if_exists "$ACME_CONF_FILE"
+  backup_if_exists "$TFW_CONFIG_FILE"
+  backup_if_exists /usr/local/bin/tfw
+
+  render_pages
+  install_tfw_config
+  render_acme_challenge_conf
+  install -m 0755 "$TFW_BIN_SRC" /usr/local/bin/tfw
+}
+
+reload_nginx_for_acme() {
+  nginx -t
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl restart nginx || nginx -s reload
+  else
+    nginx -s reload
+  fi
+}
+
+finalize_https_config() {
+  render_site_conf
+  rm -f "$ACME_CONF_FILE"
+  nginx -t
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl restart nginx || nginx -s reload
+  else
+    nginx -s reload
+  fi
+}
+
+reload_nginx_if_present() {
+  if ! command -v nginx >/dev/null 2>&1; then
+    return 0
+  fi
+
+  nginx -t || return 1
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl restart nginx || nginx -s reload
+  else
+    nginx -s reload
+  fi
+}
+
+upgrade_runtime_files() {
+  echo "$(msg upgrade)"
+
+  load_existing_runtime_config || {
+    echo "$(msg missing_runtime)" >&2
+    exit 1
+  }
+
+  restore_runtime_derived_values
+  backup_if_exists "$CONF_FILE"
+  backup_if_exists "$TFW_CONFIG_FILE"
+  backup_if_exists /usr/local/bin/tfw
+
+  render_pages
+  install_tfw_config
+  install -m 0755 "$TFW_BIN_SRC" /usr/local/bin/tfw
+
+  if have_tls_assets; then
+    render_site_conf
+  else
+    render_acme_challenge_conf
+  fi
+
+  reload_nginx_if_present || true
+  echo "$(msg upgrade_done)"
+}
+
+uninstall_runtime_files() {
+  echo "$(msg uninstall)"
+
+  load_existing_runtime_config || {
+    echo "$(msg missing_runtime)" >&2
+    exit 1
+  }
+
+  restore_runtime_derived_values
+  echo "$(msg keep_hint)"
+
+  rm -f "$CONF_FILE" "$ACME_CONF_FILE" "$TFW_CONFIG_FILE" /usr/local/bin/tfw
+
+  if [[ "$UNINSTALL_KEEP_CERTS" == "0" ]]; then
+    rm -rf "$SITE_DIR/certs"
+  else
+    echo "$(msg uninstall_keep_certs)"
+  fi
+
+  rm -f "$SITE_DIR/file-browser.html" "$SITE_DIR/file-upload.html" "$SITE_DIR/file-upload.htpasswd"
+
+  if [[ "$UNINSTALL_KEEP_DATA" == "0" ]]; then
+    rm -rf "$DATA_DIR"
+  else
+    echo "$(msg uninstall_keep_data)"
+  fi
+
+  if [[ -d "$SITE_DIR" ]] && [[ -z "$(find "$SITE_DIR" -mindepth 1 -maxdepth 1 2>/dev/null)" ]]; then
+    rmdir "$SITE_DIR" || true
+  fi
+
+  reload_nginx_if_present || true
+  echo "$(msg uninstall_done)"
+}
+
+main() {
+  need_root
+
+  case "$ACTION" in
+    install)
+      ;;
+    upgrade)
+      choose_language
+      upgrade_runtime_files
+      exit 0
+      ;;
+    uninstall)
+      choose_language
+      uninstall_runtime_files
+      exit 0
+      ;;
+    help|-h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
+  esac
+
+  choose_language
+  choose_install_mode
+
+  if [[ "$INSTALL_MODE" == "interactive" ]]; then
+    collect_interactive_input
+  else
+    set_default_mode_values
+  fi
+
+  validate_inputs
+  apply_defaults
+  print_summary
+
+  echo "$(msg start)"
+  install_dependencies
+  ensure_dirs
+  install_runtime_files
+  write_auth_file
+  install_acme_sh
+  reload_nginx_for_acme
+
+  if [[ "$INSTALL_ACME" == "1" ]]; then
+    issue_certificate
+  fi
+
+  if have_tls_assets; then
+    finalize_https_config
+  else
+    echo "$(msg acme_skip)"
+    echo "$(msg tls_missing)"
+    echo "ACME config      : $ACME_CONF_FILE"
+    echo "expected cert dir: $SITE_DIR/certs/"
+    echo "$(msg tls_next)"
+    exit 0
+  fi
+
+  echo "$(msg done)"
+  echo "tfw config      : $TFW_CONFIG_FILE"
+  echo "site config     : $CONF_FILE"
+  echo "cert file       : $SITE_DIR/certs/fullchain.cer"
+  echo "key file        : $SITE_DIR/certs/$DOMAIN.key"
+  echo "upload user     : $AUTH_USER"
+  echo "upload password : $AUTH_PASSWORD"
+  echo "$(msg nginx_main_hint) ${NGINX_MAIN_TEMPLATE}"
+  echo "$(msg next)"
+}
+
+main "$@"

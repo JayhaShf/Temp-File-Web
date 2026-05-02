@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="${LANG_HTML}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>file.jayha.top 上传</title>
+  <title>${SITE_TITLE} ${UPLOAD_TITLE_SUFFIX}</title>
   <style>
     :root {
       color-scheme: light;
@@ -25,7 +25,7 @@
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-family: "Noto Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
       color: var(--text);
       background:
         radial-gradient(circle at top left, rgba(179, 77, 34, 0.16), transparent 34%),
@@ -222,28 +222,39 @@
 <body>
   <main>
     <section class="hero">
-      <div class="eyebrow">上传入口 /upload</div>
-      <h1>上传到 /uploads/</h1>
-      <p>这个页面会把文件直接写入 <code>/var/www/files/uploads</code>，上传完成后可以在公开目录里直接访问。</p>
+      <div class="eyebrow">${UPLOAD_EYEBROW}</div>
+      <h1>${UPLOAD_MAIN_TITLE}</h1>
+      <p>${UPLOAD_SUBTITLE_PREFIX} <code>${UPLOAD_DIR}</code>${UPLOAD_SUBTITLE_SUFFIX}</p>
       <div class="nav">
-        <a class="nav-link" href="/">根目录列表</a>
-        <a class="nav-link" href="/uploads/">上传目录</a>
+        <a class="nav-link" href="/">${NAV_ROOT}</a>
+        <a class="nav-link" href="/uploads/">${NAV_UPLOADS}</a>
       </div>
     </section>
     <section class="panel">
       <div class="actions">
-        <label class="pick" for="files">选择文件</label>
-        <button id="start" disabled>开始上传</button>
-        <a class="link" href="/uploads/">打开上传目录</a>
+        <label class="pick" for="files">${UPLOAD_PICK}</label>
+        <button id="start" disabled>${UPLOAD_START}</button>
+        <a class="link" href="/uploads/">${UPLOAD_OPEN_DIR}</a>
       </div>
-      <p class="hint">支持多选；同名文件会被覆盖。当前上限是 2 GB/文件。</p>
+      <p class="hint">${UPLOAD_HINT}</p>
       <input id="files" type="file" multiple>
       <ul id="queue"></ul>
-      <div class="tip">上传完成后，文件公开地址是 <code>https://file.jayha.top/uploads/文件名</code>。</div>
+      <div class="tip">${UPLOAD_DONE_PREFIX} <code>https://${DOMAIN}/uploads/${UPLOAD_FILE_PLACEHOLDER}</code>${UPLOAD_DONE_SUFFIX}</div>
     </section>
   </main>
 
   <script>
+    const I18N = {
+      wait: ${JS_UPLOAD_WAIT},
+      preparing: ${JS_UPLOAD_PREPARING},
+      uploading: ${JS_UPLOAD_UPLOADING},
+      done: ${JS_UPLOAD_DONE},
+      openFile: ${JS_UPLOAD_OPEN_FILE},
+      failed: ${JS_UPLOAD_FAILED},
+      networkError: ${JS_UPLOAD_NET_ERROR},
+      aborted: ${JS_UPLOAD_ABORTED}
+    };
+
     const filesInput = document.getElementById("files");
     const startButton = document.getElementById("start");
     const queue = document.getElementById("queue");
@@ -273,7 +284,7 @@
             <div class="meta">${formatBytes(file.size)}</div>
           </div>
           <div class="bar"><span></span></div>
-          <div class="status">等待上传</div>
+          <div class="status">${I18N.wait}</div>
         `;
         item.querySelector(".name").textContent = file.name;
         file._elements = {
@@ -306,7 +317,7 @@
             return;
           }
           setProgress(file, (event.loaded / event.total) * 100);
-          setStatus(file, `上传中 ${Math.round((event.loaded / event.total) * 100)}%`);
+          setStatus(file, `${I18N.uploading} ${Math.round((event.loaded / event.total) * 100)}%`);
         });
 
         xhr.addEventListener("load", () => {
@@ -314,18 +325,18 @@
             setProgress(file, 100);
             const link = document.createElement("a");
             link.href = target;
-            link.textContent = "打开文件";
+            link.textContent = I18N.openFile;
             file._elements.status.innerHTML = "";
             file._elements.status.className = "status ok";
-            file._elements.status.append("上传完成 ", link);
+            file._elements.status.append(`${I18N.done} `, link);
             resolve();
             return;
           }
           reject(new Error(`HTTP ${xhr.status}`));
         });
 
-        xhr.addEventListener("error", () => reject(new Error("网络错误")));
-        xhr.addEventListener("abort", () => reject(new Error("上传已取消")));
+        xhr.addEventListener("error", () => reject(new Error(I18N.networkError)));
+        xhr.addEventListener("abort", () => reject(new Error(I18N.aborted)));
         xhr.setRequestHeader("Content-Type", "application/octet-stream");
         xhr.send(file);
       });
@@ -340,10 +351,10 @@
       startButton.disabled = true;
       for (const file of files) {
         try {
-          setStatus(file, "准备上传");
+          setStatus(file, I18N.preparing);
           await uploadFile(file);
         } catch (error) {
-          setStatus(file, `上传失败：${error.message}`, "err");
+          setStatus(file, `${I18N.failed}: ${error.message}`, "err");
         }
       }
       if (files.length > 0) {
