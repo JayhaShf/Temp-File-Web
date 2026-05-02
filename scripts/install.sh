@@ -497,6 +497,11 @@ set_default_mode_values() {
   if [[ -z "$ACCESS_HOST" ]]; then
     ACCESS_HOST="${DOMAIN:-$IP}"
   fi
+  HTTP_PORT="${HTTP_PORT:-80}"
+  HTTPS_PORT="${HTTPS_PORT:-443}"
+  if [[ -z "$DOMAIN" && "$INSTALL_ACME_IS_SET" -eq 0 ]]; then
+    INSTALL_ACME="0"
+  fi
 }
 
 validate_inputs() {
