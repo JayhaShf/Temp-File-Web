@@ -87,6 +87,7 @@ msg() {
         uninstall_keep_data) echo "已保留数据目录。" ;;
         uninstall_keep_certs) echo "已保留证书目录。" ;;
         upgrade_done) echo "升级完成。" ;;
+        ask_has_domain) echo "是否已绑定域名" ;;
         ask_domain) echo "输入绑定域名（可留空）" ;;
         ask_access_host) echo "输入访问主机名或 IP（留空使用 IP）" ;;
         ask_http_port) echo "输入 HTTP 端口（留空使用 80）" ;;
@@ -143,6 +144,7 @@ msg() {
         uninstall_keep_data) echo "Data directory was kept." ;;
         uninstall_keep_certs) echo "Certificate directory was kept." ;;
         upgrade_done) echo "Upgrade completed." ;;
+        ask_has_domain) echo "Do you have a bound domain" ;;
         ask_domain) echo "Enter the domain name (optional)" ;;
         ask_access_host) echo "Enter the access host or IP (leave empty to use IP)" ;;
         ask_http_port) echo "Enter the HTTP port (leave empty for 80)" ;;
@@ -396,6 +398,22 @@ detect_nginx_user() {
   fi
 }
 
+default_http_port() {
+  if [[ -n "$DOMAIN" ]]; then
+    printf '%s\n' "80"
+  else
+    printf '%s\n' "8080"
+  fi
+}
+
+default_https_port() {
+  if [[ -n "$DOMAIN" ]]; then
+    printf '%s\n' "443"
+  else
+    printf '%s\n' "8443"
+  fi
+}
+
 slugify_site_id() {
   local value="$1"
   value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
@@ -429,8 +447,8 @@ apply_defaults() {
   SITE_BASE_DIR="${SITE_BASE_DIR:-/etc/tfw/sites}"
   SITE_DIR="${SITE_DIR:-$SITE_BASE_DIR/$SITE_ID}"
   ACME_WEBROOT="${ACME_WEBROOT:-/var/www/_acme-challenge}"
-  HTTP_PORT="${HTTP_PORT:-80}"
-  HTTPS_PORT="${HTTPS_PORT:-443}"
+  HTTP_PORT="${HTTP_PORT:-$(default_http_port)}"
+  HTTPS_PORT="${HTTPS_PORT:-$(default_https_port)}"
   if [[ "$INSTALL_ACME" == "1" && -n "$DOMAIN" && "$ACME_EMAIL_IS_SET" -eq 0 ]]; then
     ACME_EMAIL="admin@$DOMAIN"
   fi
@@ -459,10 +477,16 @@ restore_runtime_derived_values() {
 collect_interactive_input() {
   echo "$(msg mode_interactive)"
 
-  DOMAIN="$(prompt "$(msg ask_domain)" "${DOMAIN:-}")"
+  if [[ -z "$DOMAIN" ]]; then
+    if [[ "$(prompt_yes_no "$(msg ask_has_domain)" "n")" == "1" ]]; then
+      DOMAIN="$(prompt_required "$(msg ask_domain)" "" "bad_domain")"
+    fi
+  else
+    DOMAIN="$(prompt "$(msg ask_domain)" "${DOMAIN:-}")"
+  fi
   ACCESS_HOST="$(prompt_required "$(msg ask_access_host)" "${ACCESS_HOST:-$IP}" "bad_access_host")"
-  HTTP_PORT="$(prompt_port "$(msg ask_http_port)" "${HTTP_PORT:-80}")"
-  HTTPS_PORT="$(prompt_port "$(msg ask_https_port)" "${HTTPS_PORT:-443}")"
+  HTTP_PORT="$(prompt_port "$(msg ask_http_port)" "${HTTP_PORT:-$(default_http_port)}")"
+  HTTPS_PORT="$(prompt_port "$(msg ask_https_port)" "${HTTPS_PORT:-$(default_https_port)}")"
   SITE_TITLE="$(prompt "$(msg ask_title)" "${SITE_TITLE:-Temp File Web}")"
   TFW_USER="$(prompt "$(msg ask_user)" "${TFW_USER:-$(detect_nginx_user)}")"
   DATA_DIR="$(prompt "$(msg ask_data)" "${DATA_DIR:-/srv/tfw/data}")"
@@ -497,8 +521,8 @@ set_default_mode_values() {
   if [[ -z "$ACCESS_HOST" ]]; then
     ACCESS_HOST="${DOMAIN:-$IP}"
   fi
-  HTTP_PORT="${HTTP_PORT:-80}"
-  HTTPS_PORT="${HTTPS_PORT:-443}"
+  HTTP_PORT="${HTTP_PORT:-$(default_http_port)}"
+  HTTPS_PORT="${HTTPS_PORT:-$(default_https_port)}"
   if [[ -z "$DOMAIN" && "$INSTALL_ACME_IS_SET" -eq 0 ]]; then
     INSTALL_ACME="0"
   fi

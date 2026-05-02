@@ -195,7 +195,7 @@ bash scripts/install.sh install
 
 - 域名：可留空；如果要启用 ACME，则必须填写
 - 访问主机名或 IP：必填；留空时默认使用 `IP`
-- HTTP 端口、HTTPS 端口：留空时使用默认值 `80`、`443`
+- HTTP 端口、HTTPS 端口：有域名时默认 `80`、`443`；无域名时默认 `8080`、`8443`
 - 站点标题、Nginx 用户、数据目录、站点资源目录、上传用户名、上传上限：留空时使用默认值
 - ACME webroot：仅在启用 acme.sh 时出现，留空时使用默认值
 - 证书邮箱：留空时跳过，不强制写默认邮箱
@@ -238,6 +238,12 @@ bash scripts/install.sh install
 - `ACME_WEBROOT=/var/www/_acme-challenge`
 - `AUTH_USER=uploader`
 - `MAX_UPLOAD_SIZE=2g`
+- 无域名时默认：
+  - `HTTP_PORT=8080`
+  - `HTTPS_PORT=8443`
+- 有域名时默认：
+  - `HTTP_PORT=80`
+  - `HTTPS_PORT=443`
 
 ### 3. 非交互全参数安装
 
