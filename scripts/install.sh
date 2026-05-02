@@ -3,9 +3,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-NGINX_TEMPLATE="${ROOT_DIR}/nginx/file.conf.template"
-ACME_TEMPLATE="${ROOT_DIR}/nginx/acme-challenge.conf.template"
-NGINX_MAIN_TEMPLATE="${ROOT_DIR}/nginx/nginx.conf.template"
+NGINX_HTTPS_TEMPLATE="${ROOT_DIR}/nginx/site-https.conf.template"
+NGINX_HTTP_TEMPLATE="${ROOT_DIR}/nginx/site-http.conf.template"
+NGINX_ACME_TEMPLATE="${ROOT_DIR}/nginx/site-acme.conf.template"
+NGINX_SITE_COMMON_TEMPLATE="${ROOT_DIR}/nginx/site-common.conf.template"
+NGINX_MAIN_TEMPLATE="${ROOT_DIR}/templates/nginx-main.conf.template"
 BROWSER_TEMPLATE="${ROOT_DIR}/web/file-browser.html.template"
 UPLOAD_TEMPLATE="${ROOT_DIR}/web/file-upload.html.template"
 TFW_TEMPLATE="${ROOT_DIR}/templates/tfw.conf.template"
@@ -20,6 +22,14 @@ TFW_USER="${TFW_USER:-}"
 DATA_DIR="${DATA_DIR:-}"
 SITE_BASE_DIR="${SITE_BASE_DIR:-}"
 SITE_DIR="${SITE_DIR:-}"
+INSTALL_ACME_IS_SET=0
+if [[ "${INSTALL_ACME+x}" == x ]]; then
+  INSTALL_ACME_IS_SET=1
+fi
+ACME_EMAIL_IS_SET=0
+if [[ "${ACME_EMAIL+x}" == x ]]; then
+  ACME_EMAIL_IS_SET=1
+fi
 ACME_WEBROOT="${ACME_WEBROOT:-}"
 ACME_EMAIL="${ACME_EMAIL:-}"
 AUTH_USER="${AUTH_USER:-}"
@@ -40,6 +50,7 @@ ACCESS_LOG=""
 ERROR_LOG=""
 UNINSTALL_KEEP_DATA="${UNINSTALL_KEEP_DATA:-1}"
 UNINSTALL_KEEP_CERTS="${UNINSTALL_KEEP_CERTS:-1}"
+SITE_MODE="${SITE_MODE:-}"
 
 LANG_HTML="en"
 JS_LOCALE='"en-US"'
@@ -72,20 +83,25 @@ msg() {
         uninstall_keep_data) echo "已保留数据目录。" ;;
         uninstall_keep_certs) echo "已保留证书目录。" ;;
         upgrade_done) echo "升级完成。" ;;
-        ask_domain) echo "输入绑定域名" ;;
-        ask_title) echo "输入站点标题" ;;
-        ask_user) echo "输入 Nginx 运行用户" ;;
-        ask_data) echo "输入数据目录" ;;
-        ask_site_base) echo "输入站点资源根目录" ;;
-        ask_acme_webroot) echo "输入 ACME challenge webroot" ;;
-        ask_acme_email) echo "输入证书通知邮箱" ;;
-        ask_auth_user) echo "输入上传用户名" ;;
+        ask_domain) echo "输入绑定域名（必填）" ;;
+        ask_title) echo "输入站点标题（留空使用默认值）" ;;
+        ask_user) echo "输入 Nginx 运行用户（留空自动检测）" ;;
+        ask_data) echo "输入数据目录（留空使用默认值）" ;;
+        ask_site_base) echo "输入站点资源根目录（留空使用默认值）" ;;
+        ask_install_acme) echo "是否启用 acme.sh 自动申请证书" ;;
+        ask_acme_webroot) echo "输入 ACME challenge webroot（留空使用默认值）" ;;
+        ask_acme_email) echo "输入证书通知邮箱（留空跳过）" ;;
+        ask_auth_user) echo "输入上传用户名（留空使用默认值）" ;;
         ask_auth_password) echo "输入上传密码（留空则随机生成）" ;;
-        ask_upload_size) echo "输入单文件上传大小上限，例如 2g" ;;
+        confirm_auth_password) echo "再次输入上传密码确认" ;;
+        ask_upload_size) echo "输入单文件上传大小上限，例如 2g（留空使用默认值）" ;;
         bad_domain) echo "域名不能为空，且不能包含空格。" ;;
+        password_mismatch) echo "两次输入的密码不一致，请重试。" ;;
+        invalid_yes_no) echo "请输入 y 或 n。" ;;
         acme_skip) echo "跳过 acme.sh 证书申请，将保留证书路径配置但不签发证书。" ;;
-        tls_missing) echo "未发现可用证书文件，当前保留 ACME challenge 配置。" ;;
-        tls_next) echo "请把证书放到站点 certs 目录后重新执行安装，或手动切换到正式 HTTPS 配置。" ;;
+        tls_missing) echo "未发现可用证书文件。" ;;
+        tls_next) echo "如需启用 HTTPS，请把证书放到站点 certs 目录后重新执行安装或 upgrade。" ;;
+        http_ready) echo "当前已写入 HTTP 站点配置，可先直接使用。" ;;
         acme_install) echo "正在安装 acme.sh..." ;;
         nginx_main_hint) echo "主 nginx.conf 模板位于" ;;
         summary) echo "安装参数如下：" ;;
@@ -93,6 +109,9 @@ msg() {
         mode_interactive) echo "进入交互式安装。" ;;
         missing_runtime) echo "未找到现有运行配置，无法执行 upgrade 或 uninstall。" ;;
         keep_hint) echo "默认保留数据和证书；如需删除可设置 UNINSTALL_KEEP_DATA=0 或 UNINSTALL_KEEP_CERTS=0。" ;;
+        not_set) echo "（未设置）" ;;
+        yes) echo "是" ;;
+        no) echo "否" ;;
       esac
       ;;
     *)
@@ -113,20 +132,25 @@ msg() {
         uninstall_keep_data) echo "Data directory was kept." ;;
         uninstall_keep_certs) echo "Certificate directory was kept." ;;
         upgrade_done) echo "Upgrade completed." ;;
-        ask_domain) echo "Enter the domain name" ;;
-        ask_title) echo "Enter the site title" ;;
-        ask_user) echo "Enter the Nginx runtime user" ;;
-        ask_data) echo "Enter the data directory" ;;
-        ask_site_base) echo "Enter the site asset base directory" ;;
-        ask_acme_webroot) echo "Enter the ACME challenge webroot" ;;
-        ask_acme_email) echo "Enter the certificate notification email" ;;
-        ask_auth_user) echo "Enter the upload username" ;;
+        ask_domain) echo "Enter the domain name (required)" ;;
+        ask_title) echo "Enter the site title (leave empty for default)" ;;
+        ask_user) echo "Enter the Nginx runtime user (leave empty to auto-detect)" ;;
+        ask_data) echo "Enter the data directory (leave empty for default)" ;;
+        ask_site_base) echo "Enter the site asset base directory (leave empty for default)" ;;
+        ask_install_acme) echo "Enable acme.sh automatic certificate issuance" ;;
+        ask_acme_webroot) echo "Enter the ACME challenge webroot (leave empty for default)" ;;
+        ask_acme_email) echo "Enter the certificate notification email (leave empty to skip)" ;;
+        ask_auth_user) echo "Enter the upload username (leave empty for default)" ;;
         ask_auth_password) echo "Enter the upload password (leave empty for random)" ;;
-        ask_upload_size) echo "Enter the max upload size per file, for example 2g" ;;
+        confirm_auth_password) echo "Confirm the upload password" ;;
+        ask_upload_size) echo "Enter the max upload size per file, for example 2g (leave empty for default)" ;;
         bad_domain) echo "Domain must not be empty and must not contain spaces." ;;
+        password_mismatch) echo "The passwords did not match. Try again." ;;
+        invalid_yes_no) echo "Enter y or n." ;;
         acme_skip) echo "Skipping acme.sh issuance. Certificate paths will remain configured but no cert will be issued." ;;
-        tls_missing) echo "TLS assets were not found. The ACME challenge config is kept in place." ;;
-        tls_next) echo "Place the certificate files in the site certs directory, then rerun the installer or switch to the final HTTPS config manually." ;;
+        tls_missing) echo "TLS assets were not found." ;;
+        tls_next) echo "To enable HTTPS later, place the certificate files in the site certs directory and rerun install or upgrade." ;;
+        http_ready) echo "An HTTP site config was written and is ready to use." ;;
         acme_install) echo "Installing acme.sh..." ;;
         nginx_main_hint) echo "Main nginx.conf template:" ;;
         summary) echo "Installation parameters:" ;;
@@ -134,6 +158,9 @@ msg() {
         mode_interactive) echo "Entering interactive installation." ;;
         missing_runtime) echo "Existing runtime config was not found, so upgrade or uninstall cannot continue." ;;
         keep_hint) echo "Data and certs are kept by default. Set UNINSTALL_KEEP_DATA=0 or UNINSTALL_KEEP_CERTS=0 to remove them." ;;
+        not_set) echo "(not set)" ;;
+        yes) echo "yes" ;;
+        no) echo "no" ;;
       esac
       ;;
   esac
@@ -156,11 +183,82 @@ prompt() {
   local answer
   if [[ -n "$default" ]]; then
     read -r -p "$text [$default]: " answer
-    printf '%s' "${answer:-$default}"
   else
     read -r -p "$text: " answer
-    printf '%s' "$answer"
   fi
+  answer="$(trim_value "$answer")"
+  printf '%s' "${answer:-$default}"
+}
+
+trim_value() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+prompt_optional() {
+  local text="$1"
+  local current="${2:-}"
+  local hint="${3:-}"
+  local answer
+
+  if [[ -n "$current" ]]; then
+    read -r -p "$text [$current]: " answer
+  elif [[ -n "$hint" ]]; then
+    read -r -p "$text [$hint]: " answer
+  else
+    read -r -p "$text: " answer
+  fi
+
+  answer="$(trim_value "$answer")"
+  if [[ -n "$answer" ]]; then
+    printf '%s' "$answer"
+  else
+    printf '%s' "$current"
+  fi
+}
+
+prompt_required() {
+  local text="$1"
+  local default="${2:-}"
+  local answer
+
+  while true; do
+    answer="$(prompt "$text" "$default")"
+    if [[ -n "$answer" ]]; then
+      printf '%s' "$answer"
+      return 0
+    fi
+    echo "$(msg bad_domain)" >&2
+  done
+}
+
+prompt_yes_no() {
+  local text="$1"
+  local default="${2:-y}"
+  local answer normalized
+
+  while true; do
+    read -r -p "$text [$default]: " answer
+    answer="$(trim_value "$answer")"
+    normalized="${answer:-$default}"
+    normalized="$(printf '%s' "$normalized" | tr '[:upper:]' '[:lower:]')"
+
+    case "$normalized" in
+      y|yes|1|true|on)
+        printf '1'
+        return 0
+        ;;
+      n|no|0|false|off)
+        printf '0'
+        return 0
+        ;;
+      *)
+        echo "$(msg invalid_yes_no)" >&2
+        ;;
+    esac
+  done
 }
 
 prompt_secret() {
@@ -169,6 +267,28 @@ prompt_secret() {
   read -r -s -p "$text: " answer
   printf '\n' >&2
   printf '%s' "$answer"
+}
+
+prompt_secret_confirm() {
+  local text="$1"
+  local confirm_text="$2"
+  local answer answer2
+
+  while true; do
+    answer="$(prompt_secret "$text")"
+    if [[ -z "$answer" ]]; then
+      printf '%s' "$answer"
+      return 0
+    fi
+
+    answer2="$(prompt_secret "$confirm_text")"
+    if [[ "$answer" == "$answer2" ]]; then
+      printf '%s' "$answer"
+      return 0
+    fi
+
+    echo "$(msg password_mismatch)" >&2
+  done
 }
 
 load_existing_runtime_config() {
@@ -227,14 +347,16 @@ detect_nginx_user() {
 }
 
 apply_defaults() {
-  SITE_TITLE="${SITE_TITLE:-TFW File Server}"
+  SITE_TITLE="${SITE_TITLE:-Temp File Web}"
   TFW_USER="${TFW_USER:-$(detect_nginx_user)}"
   DATA_DIR="${DATA_DIR:-/srv/tfw/data}"
   UPLOAD_DIR="${DATA_DIR}/uploads"
   SITE_BASE_DIR="${SITE_BASE_DIR:-/etc/tfw/sites}"
   SITE_DIR="${SITE_DIR:-$SITE_BASE_DIR/$DOMAIN}"
   ACME_WEBROOT="${ACME_WEBROOT:-/var/www/_acme-challenge}"
-  ACME_EMAIL="${ACME_EMAIL:-admin@$DOMAIN}"
+  if [[ "$INSTALL_ACME" == "1" && "$ACME_EMAIL_IS_SET" -eq 0 ]]; then
+    ACME_EMAIL="admin@$DOMAIN"
+  fi
   AUTH_USER="${AUTH_USER:-uploader}"
   MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-2g}"
   CONF_FILE="${CONF_FILE:-$CONF_DIR/tfw-$DOMAIN.conf}"
@@ -250,21 +372,37 @@ restore_runtime_derived_values() {
   SITE_DIR="${SITE_DIR:-$SITE_BASE_DIR/$DOMAIN}"
   ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/$DOMAIN.access.log}"
   ERROR_LOG="${ERROR_LOG:-/var/log/nginx/$DOMAIN.error.log}"
+  SITE_MODE="${SITE_MODE:-https}"
 }
 
 collect_interactive_input() {
   echo "$(msg mode_interactive)"
 
-  DOMAIN="$(prompt "$(msg ask_domain)" "${DOMAIN:-}")"
-  SITE_TITLE="$(prompt "$(msg ask_title)" "${SITE_TITLE:-TFW File Server}")"
+  DOMAIN="$(prompt_required "$(msg ask_domain)" "${DOMAIN:-}")"
+  SITE_TITLE="$(prompt "$(msg ask_title)" "${SITE_TITLE:-Temp File Web}")"
   TFW_USER="$(prompt "$(msg ask_user)" "${TFW_USER:-$(detect_nginx_user)}")"
   DATA_DIR="$(prompt "$(msg ask_data)" "${DATA_DIR:-/srv/tfw/data}")"
   SITE_BASE_DIR="$(prompt "$(msg ask_site_base)" "${SITE_BASE_DIR:-/etc/tfw/sites}")"
-  SITE_DIR="${SITE_BASE_DIR}/$DOMAIN"
-  ACME_WEBROOT="$(prompt "$(msg ask_acme_webroot)" "${ACME_WEBROOT:-/var/www/_acme-challenge}")"
-  ACME_EMAIL="$(prompt "$(msg ask_acme_email)" "${ACME_EMAIL:-admin@$DOMAIN}")"
+
+  if [[ "$INSTALL_ACME_IS_SET" -eq 0 ]]; then
+    if [[ "$(prompt_yes_no "$(msg ask_install_acme)" "y")" == "1" ]]; then
+      INSTALL_ACME="1"
+    else
+      INSTALL_ACME="0"
+    fi
+  fi
+
+  if [[ "$INSTALL_ACME" == "1" ]]; then
+    ACME_WEBROOT="$(prompt "$(msg ask_acme_webroot)" "${ACME_WEBROOT:-/var/www/_acme-challenge}")"
+    if [[ "$ACME_EMAIL_IS_SET" -eq 1 ]]; then
+      ACME_EMAIL="$(prompt_optional "$(msg ask_acme_email)" "$ACME_EMAIL")"
+    else
+      ACME_EMAIL="$(prompt_optional "$(msg ask_acme_email)" "" "admin@$DOMAIN")"
+      ACME_EMAIL_IS_SET=1
+    fi
+  fi
   AUTH_USER="$(prompt "$(msg ask_auth_user)" "${AUTH_USER:-uploader}")"
-  AUTH_PASSWORD="$(prompt_secret "$(msg ask_auth_password)")"
+  AUTH_PASSWORD="$(prompt_secret_confirm "$(msg ask_auth_password)" "$(msg confirm_auth_password)")"
   MAX_UPLOAD_SIZE="$(prompt "$(msg ask_upload_size)" "${MAX_UPLOAD_SIZE:-2g}")"
 }
 
@@ -272,7 +410,7 @@ set_default_mode_values() {
   echo "$(msg mode_default)"
   if [[ -z "$DOMAIN" ]]; then
     if [[ -t 0 ]]; then
-      DOMAIN="$(prompt "$(msg ask_domain)" "")"
+      DOMAIN="$(prompt_required "$(msg ask_domain)" "")"
     else
       echo "$(msg bad_domain)" >&2
       exit 1
@@ -368,8 +506,11 @@ ensure_dirs() {
     "$SITE_DIR" \
     "$SITE_DIR/certs" \
     "$DATA_DIR" \
-    "$UPLOAD_DIR" \
-    "$ACME_WEBROOT/.well-known/acme-challenge"
+    "$UPLOAD_DIR"
+
+  if [[ "$INSTALL_ACME" == "1" ]]; then
+    mkdir -p "$ACME_WEBROOT/.well-known/acme-challenge"
+  fi
 
   chmod 0755 "$DATA_DIR" "$UPLOAD_DIR"
   chmod 0700 "$SITE_DIR/certs"
@@ -416,6 +557,23 @@ render_template() {
 
   install -m 0644 "$tmp" "$dest"
   rm -f "$tmp"
+}
+
+render_nginx_template() {
+  local src="$1"
+  local dest="$2"
+  local common_tmp merged_tmp
+
+  common_tmp="$(mktemp)"
+  merged_tmp="$(mktemp)"
+
+  render_template "$NGINX_SITE_COMMON_TEMPLATE" "$common_tmp"
+  cp "$src" "$merged_tmp"
+
+  sed -i -e "/\${SITE_COMMON}/r $common_tmp" -e "/\${SITE_COMMON}/d" "$merged_tmp"
+  render_template "$merged_tmp" "$dest"
+
+  rm -f "$common_tmp" "$merged_tmp"
 }
 
 fill_page_i18n() {
@@ -581,15 +739,23 @@ install_acme_sh() {
   fi
 
   echo "$(msg acme_install)"
-  curl -fsSL https://get.acme.sh | sh -s email="$ACME_EMAIL"
+  if [[ -n "$ACME_EMAIL" ]]; then
+    curl -fsSL https://get.acme.sh | sh -s email="$ACME_EMAIL"
+  else
+    curl -fsSL https://get.acme.sh | sh
+  fi
 }
 
 render_acme_challenge_conf() {
-  render_template "$ACME_TEMPLATE" "$ACME_CONF_FILE"
+  render_template "$NGINX_ACME_TEMPLATE" "$ACME_CONF_FILE"
 }
 
 render_site_conf() {
-  render_template "$NGINX_TEMPLATE" "$CONF_FILE"
+  render_nginx_template "$NGINX_HTTPS_TEMPLATE" "$CONF_FILE"
+}
+
+render_http_site_conf() {
+  render_nginx_template "$NGINX_HTTP_TEMPLATE" "$CONF_FILE"
 }
 
 install_tfw_config() {
@@ -612,8 +778,29 @@ issue_certificate() {
     --reloadcmd "nginx -t && (systemctl reload nginx || nginx -s reload)"
 }
 
+issue_certificate_if_enabled() {
+  if [[ "$INSTALL_ACME" != "1" ]]; then
+    return 0
+  fi
+
+  if issue_certificate; then
+    return 0
+  fi
+
+  echo "$(msg acme_skip)"
+  return 1
+}
+
 have_tls_assets() {
   [[ -f "$SITE_DIR/certs/fullchain.cer" && -f "$SITE_DIR/certs/$DOMAIN.key" ]]
+}
+
+set_site_mode() {
+  if have_tls_assets; then
+    SITE_MODE="https"
+  else
+    SITE_MODE="http"
+  fi
 }
 
 print_summary() {
@@ -626,8 +813,12 @@ print_summary() {
   echo "  data dir        : $DATA_DIR"
   echo "  upload dir      : $UPLOAD_DIR"
   echo "  site dir        : $SITE_DIR"
-  echo "  acme webroot    : $ACME_WEBROOT"
-  echo "  acme email      : $ACME_EMAIL"
+  echo "  site mode       : ${SITE_MODE:-auto}"
+  echo "  acme enabled    : $(if [[ "$INSTALL_ACME" == "1" ]]; then msg yes; else msg no; fi)"
+  if [[ "$INSTALL_ACME" == "1" ]]; then
+    echo "  acme webroot    : $ACME_WEBROOT"
+    echo "  acme email      : ${ACME_EMAIL:-$(msg not_set)}"
+  fi
   echo "  auth user       : $AUTH_USER"
   echo "  upload max size : $MAX_UPLOAD_SIZE"
 }
@@ -641,12 +832,17 @@ install_runtime_files() {
   backup_if_exists /usr/local/bin/tfw
 
   render_pages
+  if [[ "$INSTALL_ACME" == "1" ]]; then
+    render_acme_challenge_conf
+  else
+    rm -f "$ACME_CONF_FILE"
+  fi
   install_tfw_config
-  render_acme_challenge_conf
   install -m 0755 "$TFW_BIN_SRC" /usr/local/bin/tfw
 }
 
 reload_nginx_for_acme() {
+  [[ "$INSTALL_ACME" == "1" ]] || return 0
   nginx -t
   if command -v systemctl >/dev/null 2>&1; then
     systemctl restart nginx || nginx -s reload
@@ -657,6 +853,8 @@ reload_nginx_for_acme() {
 
 finalize_https_config() {
   render_site_conf
+  SITE_MODE="https"
+  install_tfw_config
   rm -f "$ACME_CONF_FILE"
   nginx -t
   if command -v systemctl >/dev/null 2>&1; then
@@ -688,19 +886,28 @@ upgrade_runtime_files() {
   }
 
   restore_runtime_derived_values
+  set_site_mode
   backup_if_exists "$CONF_FILE"
   backup_if_exists "$TFW_CONFIG_FILE"
   backup_if_exists /usr/local/bin/tfw
 
   render_pages
-  install_tfw_config
   install -m 0755 "$TFW_BIN_SRC" /usr/local/bin/tfw
 
   if have_tls_assets; then
+    SITE_MODE="https"
     render_site_conf
-  else
+    rm -f "$ACME_CONF_FILE"
+  elif [[ "$INSTALL_ACME" == "1" ]]; then
+    SITE_MODE="http"
     render_acme_challenge_conf
+  else
+    SITE_MODE="http"
+    render_http_site_conf
+    rm -f "$ACME_CONF_FILE"
   fi
+
+  install_tfw_config
 
   reload_nginx_if_present || true
   echo "$(msg upgrade_done)"
@@ -778,6 +985,7 @@ main() {
 
   validate_inputs
   apply_defaults
+  set_site_mode
   print_summary
 
   echo "$(msg start)"
@@ -788,16 +996,18 @@ main() {
   install_acme_sh
   reload_nginx_for_acme
 
-  if [[ "$INSTALL_ACME" == "1" ]]; then
-    issue_certificate
-  fi
+  issue_certificate_if_enabled || true
 
   if have_tls_assets; then
     finalize_https_config
   else
-    echo "$(msg acme_skip)"
+    SITE_MODE="http"
+    render_http_site_conf
+    install_tfw_config
+    rm -f "$ACME_CONF_FILE"
+    reload_nginx_if_present || true
     echo "$(msg tls_missing)"
-    echo "ACME config      : $ACME_CONF_FILE"
+    echo "$(msg http_ready)"
     echo "expected cert dir: $SITE_DIR/certs/"
     echo "$(msg tls_next)"
     exit 0

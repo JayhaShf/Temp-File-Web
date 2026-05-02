@@ -1,6 +1,6 @@
-# tfw-file-server
+# Temp-File-Web
 
-`tfw-file-server` is now a reusable deployment template for a lightweight Nginx-based file server.
+`Temp-File-Web` is now a reusable deployment template for a lightweight Nginx-based file server.
 
 It is designed for deploying on new machines without hardcoded domain assumptions, and includes:
 
@@ -22,6 +22,7 @@ It is designed for deploying on new machines without hardcoded domain assumption
 - 首次安装时可选择中文或英文
 - 可选择交互式安装或一键默认安装
 - 可直接接入 `acme.sh` 自动申请证书
+- 证书不是必选项，可先以 HTTP 方式快速上线
 - 安装后生成运行配置，`tfw` 会按实际部署参数工作
 
 ## 功能
@@ -33,6 +34,7 @@ It is designed for deploying on new machines without hardcoded domain assumption
 - `/uploads/` 支持认证后 `PUT` 上传
 - `/_listing/` 提供 JSON 文件索引
 - HTTP 自动跳转到 HTTPS
+- 无证书时可直接使用 HTTP 站点
 - 内置 ACME challenge 路由
 - TLS 与常见安全头默认启用
 - 每个站点独立 access/error 日志文件
@@ -75,21 +77,25 @@ web/        页面模板
 
 关键文件：
 
-- [bin/tfw](/root/tfw-file-server/bin/tfw)
+- [bin/tfw](/root/Temp-File-Web/bin/tfw)
   安装后的运维命令。默认读取 `/etc/tfw/tfw.conf`。
-- [scripts/install.sh](/root/tfw-file-server/scripts/install.sh)
+- [scripts/install.sh](/root/Temp-File-Web/scripts/install.sh)
   模板安装器。
-- [nginx/file.conf.template](/root/tfw-file-server/nginx/file.conf.template)
+- [site-https.conf.template](/root/Temp-File-Web/nginx/site-https.conf.template)
   正式 HTTPS 站点模板。
-- [nginx/acme-challenge.conf.template](/root/tfw-file-server/nginx/acme-challenge.conf.template)
-  证书签发阶段用的 HTTP challenge 模板。
-- [templates/tfw.conf.template](/root/tfw-file-server/templates/tfw.conf.template)
+- [site-http.conf.template](/root/Temp-File-Web/nginx/site-http.conf.template)
+  无证书时的 HTTP 站点模板。
+- [site-acme.conf.template](/root/Temp-File-Web/nginx/site-acme.conf.template)
+  证书签发阶段用的 ACME 临时站点模板。
+- [site-common.conf.template](/root/Temp-File-Web/nginx/site-common.conf.template)
+  HTTP 与 HTTPS 共用的站点逻辑片段。
+- [templates/tfw.conf.template](/root/Temp-File-Web/templates/tfw.conf.template)
   安装后生成的运行配置模板。
-- [web/file-browser.html.template](/root/tfw-file-server/web/file-browser.html.template)
+- [web/file-browser.html.template](/root/Temp-File-Web/web/file-browser.html.template)
   文件浏览页面模板。
-- [web/file-upload.html.template](/root/tfw-file-server/web/file-upload.html.template)
+- [web/file-upload.html.template](/root/Temp-File-Web/web/file-upload.html.template)
   上传页面模板。
-- [nginx/nginx.conf.template](/root/tfw-file-server/nginx/nginx.conf.template)
+- [nginx-main.conf.template](/root/Temp-File-Web/templates/nginx-main.conf.template)
   主 `nginx.conf` 参考模板。
 
 ## 默认安装结果
@@ -99,7 +105,7 @@ web/        页面模板
 - 站点运行配置：`/etc/tfw/tfw.conf`
 - `tfw` 命令：`/usr/local/bin/tfw`
 - Nginx 站点配置：`/etc/nginx/conf.d/tfw-<domain>.conf`
-- ACME challenge 临时配置：`/etc/nginx/conf.d/tfw-<domain>-acme.conf`
+- ACME challenge 临时配置：`/etc/nginx/conf.d/tfw-<domain>-acme.conf`（仅启用 ACME 且尚未切到正式 HTTPS 时）
 - 站点资源目录：`/etc/tfw/sites/<domain>/`
 - 认证文件：`/etc/tfw/sites/<domain>/file-upload.htpasswd`
 - 页面文件：
@@ -156,7 +162,7 @@ AUTO_INSTALL_DEPS=0 bash scripts/install.sh
 ### 1. 交互式安装
 
 ```bash
-cd /root/tfw-file-server
+cd /root/Temp-File-Web
 bash scripts/install.sh install
 ```
 
@@ -172,11 +178,30 @@ bash scripts/install.sh install
 - Nginx 运行用户
 - 数据目录
 - 站点资源目录根路径
-- ACME webroot
-- 证书邮箱
+- 是否启用 acme.sh 自动签发证书
 - 上传用户名
 - 上传密码
 - 单文件上传上限
+
+只有当你选择启用 acme.sh 时，安装器才会继续询问：
+
+- ACME webroot
+- 证书邮箱
+
+交互式安装里，这些字段现在支持直接回车处理：
+
+- 域名：必填，不能留空
+- 站点标题、Nginx 用户、数据目录、站点资源目录、上传用户名、上传上限：留空时使用默认值
+- ACME webroot：仅在启用 acme.sh 时出现，留空时使用默认值
+- 证书邮箱：留空时跳过，不强制写默认邮箱
+- 上传密码：留空时自动随机生成；如果手动输入，则会要求二次确认
+
+如果设置了 `INSTALL_ACME=0`：
+
+- 交互模式不会再询问是否启用 acme、`ACME webroot` 和证书邮箱
+- 安装器会直接跳过证书申请流程
+- 会直接写入可用的 HTTP 站点配置，方便先上线使用
+- 如果你之后手动放入证书文件，再重新执行安装或升级，安装器会切到正式 HTTPS 配置
 
 ### 2. 一键默认安装
 
@@ -188,7 +213,7 @@ DOMAIN=files.example.com INSTALL_MODE=default LANGUAGE=zh bash scripts/install.s
 
 默认值大致如下：
 
-- `SITE_TITLE=TFW File Server`
+- `SITE_TITLE=Temp File Web`
 - `DATA_DIR=/srv/tfw/data`
 - `SITE_BASE_DIR=/etc/tfw/sites`
 - `ACME_WEBROOT=/var/www/_acme-challenge`
@@ -230,7 +255,8 @@ bash scripts/install.sh upgrade
 - 重新写入 `tfw` 运行配置
 - 重新安装 `/usr/local/bin/tfw`
 - 如果已有证书，则重写正式 HTTPS 站点配置
-- 如果还没有证书，则保留 ACME challenge 配置
+- 如果启用了 ACME 但还没有证书，则保留 ACME challenge 配置
+- 如果未启用 ACME 且还没有证书，则会保留 HTTP 站点配置
 
 适合这些场景：
 
@@ -272,7 +298,8 @@ UNINSTALL_KEEP_DATA=0 UNINSTALL_KEEP_CERTS=0 bash scripts/install.sh uninstall
 3. 重载 Nginx，让 `/.well-known/acme-challenge/` 可访问
 4. 使用 `acme.sh --issue -w <webroot>` 申请证书
 5. 用 `acme.sh --install-cert` 把证书落地到站点目录
-6. 生成正式 HTTPS 配置并再次重载 Nginx
+6. 如果证书申请成功，生成正式 HTTPS 配置并再次重载 Nginx
+7. 如果证书申请失败，自动回落到可用的 HTTP 站点配置
 
 如果你暂时不想签证书，可以跳过：
 
@@ -280,7 +307,7 @@ UNINSTALL_KEEP_DATA=0 UNINSTALL_KEEP_CERTS=0 bash scripts/install.sh uninstall
 INSTALL_ACME=0 DOMAIN=files.example.com bash scripts/install.sh
 ```
 
-这种情况下仍会生成证书路径配置，但你需要后续自己补证书文件。
+这种情况下安装器会直接写入可用的 HTTP 站点配置。你需要后续自己把证书文件放到站点 `certs` 目录，再重新执行安装或升级，切换到 HTTPS。
 
 ## 安装后检查
 
@@ -300,6 +327,7 @@ tfw status
 - 认证文件是否存在
 - 证书文件是否存在
 - 根页面、上传目录、listing API 是否返回预期状态码
+- 当前站点模式是 HTTP 还是 HTTPS
 
 ## `tfw` 命令
 
@@ -327,7 +355,7 @@ tfw passwd
 - `tfw status`
   同时做 `nginx -t`、进程检查、HTTP 返回码检查、目录文件数量与空间检查。
 - `tfw passwd`
-  轮换上传认证密码，并通过回源验证检查是否生效。
+  轮换上传认证密码；本地写入校验通过后立即生效，并附带输出远端访问探测结果。
 - `tfw` 默认读取 `/etc/tfw/tfw.conf`。
   如果你要临时切换到别的配置文件，可以这样执行：
 
@@ -359,8 +387,8 @@ TFW_CONFIG=/path/to/tfw.conf tfw info
 - 如果一台机器上部署多个站点，建议为每个域名单独跑一套目录与配置。
 - `tfw` 读取的是本机安装后的运行配置，不再依赖仓库里的硬编码值。
 - 如果你要定制首页文案或 UI，建议修改模板文件而不是改安装后产物。
-- [nginx/nginx.conf.template](/root/tfw-file-server/nginx/nginx.conf.template) 只是参考模板，安装器不会默认覆盖系统主配置。
-- `INSTALL_ACME=0` 时安装器会保留 challenge 配置，不会强行切换到 HTTPS 站点配置。
+- [nginx-main.conf.template](/root/Temp-File-Web/templates/nginx-main.conf.template) 只是参考模板，安装器不会默认覆盖系统主配置。
+- `INSTALL_ACME=0` 时安装器会优先生成 HTTP 站点配置；只有你手动补齐证书后，才会切到正式 HTTPS 站点配置。
 - `upgrade` 和 `uninstall` 依赖已有 `/etc/tfw/tfw.conf`，如果运行配置已经丢失，这两个动作无法自动继续。
 
 ## 后续建议

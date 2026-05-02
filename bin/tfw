@@ -11,8 +11,10 @@ fi
 
 DOMAIN="${DOMAIN:-files.example.com}"
 IP="${IP:-127.0.0.1}"
-SITE_TITLE="${SITE_TITLE:-TFW File Server}"
+SITE_TITLE="${SITE_TITLE:-Temp File Web}"
 LANGUAGE="${LANGUAGE:-en}"
+INSTALL_ACME="${INSTALL_ACME:-1}"
+SITE_MODE="${SITE_MODE:-https}"
 CONF="${CONF:-/etc/nginx/conf.d/tfw-$DOMAIN.conf}"
 SITE_DIR="${SITE_DIR:-/etc/tfw/sites/$DOMAIN}"
 AUTH_FILE="${AUTH_FILE:-$SITE_DIR/file-upload.htpasswd}"
@@ -29,10 +31,17 @@ MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-2g}"
 ACME_HOME="${ACME_HOME:-/root/.acme.sh}"
 ACME_BIN="${ACME_BIN:-$ACME_HOME/acme.sh}"
 
-url_root="https://${DOMAIN}/"
-url_upload="https://${DOMAIN}/upload"
-url_uploads="https://${DOMAIN}/uploads/"
-url_listing="https://${DOMAIN}/_listing/"
+url_scheme="https"
+url_port="443"
+if [[ "$SITE_MODE" == "http" ]]; then
+  url_scheme="http"
+  url_port="80"
+fi
+
+url_root="${url_scheme}://${DOMAIN}/"
+url_upload="${url_scheme}://${DOMAIN}/upload"
+url_uploads="${url_scheme}://${DOMAIN}/uploads/"
+url_listing="${url_scheme}://${DOMAIN}/_listing/"
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -120,9 +129,9 @@ http_code() {
   local url="$1"
   local auth="${2:-}"
   if [[ -n "$auth" ]]; then
-    curl -sk -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:443:${IP}" -u "$auth" "$url" 2>/dev/null || echo ERR
+    curl -sk -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:${url_port}:${IP}" -u "$auth" "$url" 2>/dev/null || echo ERR
   else
-    curl -sk -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:443:${IP}" "$url" 2>/dev/null || echo ERR
+    curl -sk -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:${url_port}:${IP}" "$url" 2>/dev/null || echo ERR
   fi
 }
 
@@ -142,6 +151,7 @@ show_urls() {
 show_info() {
   echo "runtime config  : $CONFIG_FILE ($(path_state "$CONFIG_FILE"))"
   echo "language        : $LANGUAGE"
+  echo "site mode       : $SITE_MODE"
   echo "site title      : $SITE_TITLE"
   echo "domain          : $DOMAIN"
   echo "resolve ip      : $IP"
@@ -152,7 +162,10 @@ show_info() {
   echo "upload dir      : $UPLOAD_DIR ($(path_state "$UPLOAD_DIR"))"
   echo "browser html    : $BROWSER_HTML ($(path_state "$BROWSER_HTML"))"
   echo "upload html     : $UPLOAD_HTML ($(path_state "$UPLOAD_HTML"))"
-  echo "acme webroot    : $ACME_WEBROOT ($(path_state "$ACME_WEBROOT"))"
+  echo "acme enabled    : $INSTALL_ACME"
+  if [[ "$INSTALL_ACME" == "1" ]]; then
+    echo "acme webroot    : $ACME_WEBROOT ($(path_state "$ACME_WEBROOT"))"
+  fi
   echo "cert file       : $CERT_FILE ($(path_state "$CERT_FILE"))"
   echo "key file        : $KEY_FILE ($(path_state "$KEY_FILE"))"
   echo "access log      : $ACCESS_LOG ($(path_state "$ACCESS_LOG"))"
@@ -172,12 +185,13 @@ show_status() {
   need curl
 
   local listing_payload listing_count auth_user_name
-  listing_payload="$(curl -sk --resolve "${DOMAIN}:443:${IP}" "$url_listing" 2>/dev/null || true)"
+  listing_payload="$(curl -sk --resolve "${DOMAIN}:${url_port}:${IP}" "$url_listing" 2>/dev/null || true)"
   listing_count="$(printf '%s' "$listing_payload" | grep -o '"name":"' | wc -l | awk '{print $1}')"
   auth_user_name="$(auth_user || true)"
 
   echo "time            : $(date '+%Y-%m-%d %H:%M:%S %Z (%z)')"
   echo "domain          : $DOMAIN"
+  echo "site mode       : $SITE_MODE"
   echo "resolve ip      : $IP"
   echo "config file     : $CONF ($(path_state "$CONF"))"
   echo "auth file       : $AUTH_FILE ($(path_state "$AUTH_FILE"))"
@@ -270,7 +284,6 @@ restart_nginx() {
 rotate_passwd() {
   need_root
   need openssl
-  need curl
 
   local user input_user password password2 backup hash code current_user
   [[ $# -le 2 ]] || {
@@ -319,26 +332,32 @@ rotate_passwd() {
   umask 077
   printf '%s:%s\n' "$user" "$hash" > "$AUTH_FILE"
 
-  code="$(http_code "$url_upload" "${user}:${password}")"
-  if [[ "$code" != "200" ]]; then
+  if ! awk -F: 'NR==1 && NF>=2 && $1 != "" {ok=1} END {exit ok ? 0 : 1}' "$AUTH_FILE"; then
     if [[ -n "$backup" ]]; then
       cp "$backup" "$AUTH_FILE"
     else
       rm -f "$AUTH_FILE"
     fi
-    echo "password verify failed: $code, rolled back" >&2
+    echo "password verify failed: auth file format invalid, rolled back" >&2
     exit 1
   fi
+
+  code="$(http_code "$url_upload" "${user}:${password}")"
 
   echo "user            : $user"
   echo "password        : $password"
   echo "backup          : ${backup:-not created}"
-  echo "verify          : $code"
+  echo "local verify    : ok"
+  echo "remote verify   : $code"
 }
 
 show_cert() {
-  echo "acme bin        : $ACME_BIN ($(path_state "$ACME_BIN"))"
-  echo "acme home       : $ACME_HOME ($(path_state "$ACME_HOME"))"
+  echo "site mode       : $SITE_MODE"
+  echo "acme enabled    : $INSTALL_ACME"
+  if [[ "$INSTALL_ACME" == "1" ]]; then
+    echo "acme bin        : $ACME_BIN ($(path_state "$ACME_BIN"))"
+    echo "acme home       : $ACME_HOME ($(path_state "$ACME_HOME"))"
+  fi
   echo "cert file       : $CERT_FILE ($(path_state "$CERT_FILE"))"
   echo "key file        : $KEY_FILE ($(path_state "$KEY_FILE"))"
 }
