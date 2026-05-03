@@ -45,7 +45,11 @@
         return 301 /upload;
     }
 
-    location = /_auth_upload {
+    location = /_auth_upload_gate {
+        internal;
+        if ($cookie_${AUTH_COOKIE_NAME} = "${AUTH_SESSION_TOKEN}") {
+            return 204;
+        }
         auth_basic "file-upload";
         auth_basic_user_file ${AUTH_FILE};
         add_header Cache-Control "no-store" always;
@@ -53,8 +57,7 @@
     }
 
     location = /_session_login {
-        auth_basic "file-upload";
-        auth_basic_user_file ${AUTH_FILE};
+        auth_request /_auth_upload_gate;
         add_header Set-Cookie "${AUTH_COOKIE_NAME}=${AUTH_SESSION_TOKEN}; ${AUTH_COOKIE_FLAGS}" always;
         add_header Cache-Control "no-store" always;
         return 204;
@@ -76,6 +79,24 @@
 
     location = /uploads {
         return 301 /uploads/;
+    }
+
+    location /_upload_api/ {
+        auth_request /_auth_upload_gate;
+        alias ${UPLOAD_DIR}/;
+        client_max_body_size ${MAX_UPLOAD_SIZE};
+        dav_methods PUT;
+        create_full_put_path off;
+        dav_access user:rw group:r all:r;
+
+        limit_except PUT OPTIONS {
+            deny all;
+        }
+
+        if ($request_method = OPTIONS) {
+            add_header Allow "PUT, OPTIONS" always;
+            return 204;
+        }
     }
 
     location ~ ^/(?!_listing/).+/$ {
@@ -105,18 +126,12 @@
     }
 
     location /uploads/ {
-        client_max_body_size ${MAX_UPLOAD_SIZE};
-        dav_methods PUT;
-        create_full_put_path off;
-        dav_access user:rw group:r all:r;
-
-        if ($cookie_${AUTH_COOKIE_NAME} != "${AUTH_SESSION_TOKEN}") {
-            auth_basic "file-upload";
-            auth_basic_user_file ${AUTH_FILE};
+        limit_except GET HEAD OPTIONS {
+            deny all;
         }
 
         if ($request_method = OPTIONS) {
-            add_header Allow "GET, HEAD, OPTIONS, PUT" always;
+            add_header Allow "GET, HEAD, OPTIONS" always;
             return 204;
         }
     }

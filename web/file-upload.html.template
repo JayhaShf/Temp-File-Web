@@ -470,8 +470,9 @@
     function uploadFile(file) {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        const target = `/uploads/${encodeURIComponent(file.name)}`;
-        xhr.open("PUT", target);
+        const uploadTarget = `/_upload_api/${encodeURIComponent(file.name)}`;
+        const publicTarget = `/uploads/${encodeURIComponent(file.name)}`;
+        xhr.open("PUT", uploadTarget);
         xhr.responseType = "text";
 
         xhr.upload.addEventListener("progress", (event) => {
@@ -486,7 +487,7 @@
           if (xhr.status >= 200 && xhr.status < 300) {
             setProgress(file, 100);
             const link = document.createElement("a");
-            link.href = target;
+            link.href = publicTarget;
             link.textContent = I18N.openFile;
             file._elements.status.innerHTML = "";
             file._elements.status.className = "status ok";
