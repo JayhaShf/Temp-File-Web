@@ -6,16 +6,27 @@
   <title>${SITE_TITLE} ${BROWSER_TITLE_SUFFIX}</title>
   <style>
     :root {
-      color-scheme: light;
-      --card: rgba(255, 252, 247, 0.92);
-      --text: #1f1a16;
-      --muted: #6d6258;
-      --line: rgba(86, 72, 58, 0.18);
-      --accent: #b34d22;
-      --accent-strong: #8f3611;
-      --accent-soft: rgba(179, 77, 34, 0.12);
-      --ok: #226f54;
-      --shadow: rgba(73, 53, 39, 0.12);
+      color-scheme: dark;
+      --ink: #f5ead8;
+      --text: #f7efe1;
+      --muted: #b9aa92;
+      --dim: #786e5e;
+      --coal: #171512;
+      --coal-soft: #201c17;
+      --card: rgba(35, 30, 24, 0.78);
+      --card-strong: rgba(49, 41, 31, 0.9);
+      --line: rgba(245, 218, 174, 0.18);
+      --line-strong: rgba(245, 218, 174, 0.32);
+      --accent: #e29b45;
+      --accent-strong: #ffbf66;
+      --accent-soft: rgba(226, 155, 69, 0.16);
+      --green: #7fcda2;
+      --green-soft: rgba(127, 205, 162, 0.15);
+      --danger: #ff7d6e;
+      --danger-soft: rgba(255, 125, 110, 0.13);
+      --shadow: rgba(0, 0, 0, 0.44);
+      --font-body: "LXGW WenKai", "Noto Serif SC", "Songti SC", "STSong", "Microsoft YaHei", serif;
+      --font-ui: "Avenir Next", "Trebuchet MS", "Noto Sans SC", sans-serif;
     }
 
     * {
@@ -25,117 +36,210 @@
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: "Noto Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-family: var(--font-body);
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(179, 77, 34, 0.16), transparent 34%),
-        radial-gradient(circle at bottom right, rgba(34, 111, 84, 0.16), transparent 28%),
-        linear-gradient(135deg, #f6f0e8, #efe6d7 46%, #f8f4ed);
-      padding: 24px;
+        radial-gradient(circle at 12% 12%, rgba(226, 155, 69, 0.24), transparent 30%),
+        radial-gradient(circle at 86% 18%, rgba(127, 205, 162, 0.16), transparent 26%),
+        radial-gradient(circle at 52% 92%, rgba(255, 125, 110, 0.12), transparent 28%),
+        linear-gradient(135deg, #14110e 0%, #241b12 48%, #101412 100%);
+      padding: 30px;
+      overflow-x: hidden;
+    }
+
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    body::before {
+      opacity: 0.36;
+      background-image:
+        linear-gradient(rgba(245, 218, 174, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(245, 218, 174, 0.045) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: radial-gradient(circle at center, #000 0 58%, transparent 82%);
+    }
+
+    body::after {
+      opacity: 0.09;
+      background-image: radial-gradient(circle, #fff 0 0.7px, transparent 0.8px);
+      background-size: 9px 9px;
+      mix-blend-mode: screen;
     }
 
     main {
-      width: min(1080px, 100%);
+      position: relative;
+      width: min(1120px, 100%);
       margin: 0 auto;
-      background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 24px;
-      box-shadow: 0 24px 80px var(--shadow);
+      border-radius: 34px;
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.07), transparent 34%),
+        linear-gradient(180deg, rgba(40, 34, 27, 0.88), rgba(25, 22, 18, 0.9));
+      box-shadow: 0 32px 120px var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
       overflow: hidden;
-      backdrop-filter: blur(10px);
+      backdrop-filter: blur(18px);
+      animation: page-in 460ms ease both;
+    }
+
+    main::before {
+      content: "";
+      position: absolute;
+      inset: 14px;
+      border: 1px solid rgba(245, 218, 174, 0.08);
+      border-radius: 24px;
+      pointer-events: none;
     }
 
     .hero {
-      padding: 32px;
+      position: relative;
+      padding: 42px 44px 34px;
       border-bottom: 1px solid var(--line);
-      background: linear-gradient(135deg, rgba(179, 77, 34, 0.08), rgba(255, 255, 255, 0));
+      background:
+        linear-gradient(110deg, rgba(226, 155, 69, 0.18), transparent 52%),
+        radial-gradient(circle at 88% 14%, rgba(255, 191, 102, 0.17), transparent 26%);
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "TFW";
+      position: absolute;
+      right: 28px;
+      bottom: -24px;
+      font: 800 clamp(70px, 16vw, 190px) / 1 var(--font-ui);
+      letter-spacing: -0.08em;
+      color: rgba(245, 218, 174, 0.045);
+      pointer-events: none;
     }
 
     .eyebrow {
+      position: relative;
+      z-index: 1;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
+      gap: 9px;
+      padding: 7px 13px;
+      border: 1px solid rgba(226, 155, 69, 0.24);
       border-radius: 999px;
-      font-size: 13px;
+      font: 700 12px / 1 var(--font-ui);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
       color: var(--accent-strong);
-      background: var(--accent-soft);
-      margin-bottom: 14px;
+      background: rgba(226, 155, 69, 0.1);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      margin-bottom: 18px;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--accent-strong);
+      box-shadow: 0 0 20px var(--accent-strong);
     }
 
     h1 {
-      margin: 0 0 10px;
-      font-size: clamp(30px, 4vw, 42px);
-      line-height: 1.05;
+      position: relative;
+      z-index: 1;
+      margin: 0 0 12px;
+      max-width: 780px;
+      font-size: clamp(34px, 5.2vw, 66px);
+      line-height: 0.98;
+      letter-spacing: -0.055em;
+      text-wrap: balance;
     }
 
     p {
+      position: relative;
+      z-index: 1;
       margin: 0;
       color: var(--muted);
-      line-height: 1.6;
+      line-height: 1.75;
     }
 
     .nav {
+      position: relative;
+      z-index: 1;
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
-      margin-top: 18px;
+      margin-top: 24px;
     }
 
     a.nav-link,
-    a.action-link {
+    a.action-link,
+    button.action-link {
       appearance: none;
       border: 1px solid var(--line);
       border-radius: 999px;
-      font: inherit;
+      font: 700 14px / 1 var(--font-ui);
+      letter-spacing: 0.02em;
       text-decoration: none;
       padding: 12px 18px;
       color: var(--text);
-      background: rgba(255, 255, 255, 0.72);
-      transition: transform 140ms ease, background 140ms ease;
+      background: rgba(255, 255, 255, 0.055);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+      cursor: pointer;
     }
 
     a.nav-link:hover,
-    a.action-link:hover {
-      transform: translateY(-1px);
+    a.action-link:hover,
+    button.action-link:hover {
+      transform: translateY(-2px);
+      border-color: var(--line-strong);
+      background: rgba(255, 255, 255, 0.09);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
 
     .panel {
-      padding: 28px 32px 32px;
+      padding: 34px 44px 42px;
     }
 
     .toolbar {
       display: grid;
-      gap: 16px;
+      gap: 18px;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: end;
-      margin-bottom: 20px;
+      margin-bottom: 22px;
     }
 
     .field {
       display: grid;
-      gap: 8px;
+      gap: 9px;
     }
 
     .field label {
-      font-size: 14px;
-      color: var(--muted);
+      font: 700 13px / 1 var(--font-ui);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--dim);
     }
 
     .field input {
       width: 100%;
       border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px 16px;
-      font: inherit;
+      border-radius: 20px;
+      padding: 16px 18px;
+      font: 18px / 1.3 var(--font-body);
       color: var(--text);
-      background: rgba(255, 255, 255, 0.84);
+      background: rgba(13, 12, 10, 0.34);
       outline: none;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .field input::placeholder {
+      color: rgba(185, 170, 146, 0.62);
     }
 
     .field input:focus {
-      border-color: rgba(179, 77, 34, 0.48);
-      box-shadow: 0 0 0 4px rgba(179, 77, 34, 0.08);
+      border-color: rgba(255, 191, 102, 0.58);
+      box-shadow: 0 0 0 4px rgba(226, 155, 69, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07);
     }
 
     .stats {
@@ -148,11 +252,44 @@
     .chip {
       border-radius: 999px;
       border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.72);
-      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.055);
+      padding: 11px 15px;
       color: var(--muted);
-      font-size: 14px;
+      font: 700 13px / 1 var(--font-ui);
       white-space: nowrap;
+    }
+
+    .manager {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 22px;
+      padding: 18px 20px;
+      border: 1px solid rgba(127, 205, 162, 0.28);
+      border-radius: 24px;
+      background:
+        linear-gradient(135deg, rgba(127, 205, 162, 0.13), transparent),
+        rgba(255, 255, 255, 0.045);
+    }
+
+    .manager strong {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--text);
+      font-size: 18px;
+    }
+
+    .manager p {
+      font-size: 14px;
+    }
+
+    .manager-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      flex: 0 0 auto;
     }
 
     .list {
@@ -164,48 +301,74 @@
     }
 
     .item {
+      position: relative;
       border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 18px;
-      background: rgba(255, 255, 255, 0.76);
+      border-radius: 24px;
+      padding: 20px;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.075), transparent 58%),
+        rgba(255, 255, 255, 0.045);
       display: grid;
       gap: 14px;
-      animation: rise 220ms ease both;
+      overflow: hidden;
+      animation: rise 260ms ease both;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+
+    .item::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      background: linear-gradient(var(--accent-strong), rgba(127, 205, 162, 0.55));
+      opacity: 0.78;
+    }
+
+    .item:hover {
+      transform: translateY(-2px);
+      border-color: var(--line-strong);
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.105), transparent 58%),
+        rgba(255, 255, 255, 0.06);
     }
 
     .item-head {
       display: flex;
       justify-content: space-between;
-      gap: 16px;
+      gap: 18px;
       align-items: start;
     }
 
     .title-wrap {
       min-width: 0;
+      padding-left: 6px;
     }
 
     .type {
       display: inline-flex;
       align-items: center;
-      padding: 5px 10px;
+      padding: 6px 10px;
+      border: 1px solid rgba(226, 155, 69, 0.22);
       border-radius: 999px;
-      font-size: 12px;
-      letter-spacing: 0.04em;
+      font: 800 11px / 1 var(--font-ui);
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--accent-strong);
       background: var(--accent-soft);
-      margin-bottom: 10px;
+      margin-bottom: 11px;
     }
 
     .type.dir {
-      color: var(--ok);
-      background: rgba(34, 111, 84, 0.12);
+      color: var(--green);
+      border-color: rgba(127, 205, 162, 0.22);
+      background: var(--green-soft);
     }
 
     .name {
-      margin: 0;
-      font-size: 20px;
-      line-height: 1.25;
+      margin: 0 0 8px;
+      font-size: clamp(20px, 3vw, 28px);
+      line-height: 1.18;
+      letter-spacing: -0.03em;
       word-break: break-all;
     }
 
@@ -215,8 +378,10 @@
     }
 
     .name a:hover {
+      color: var(--accent-strong);
       text-decoration: underline;
       text-decoration-thickness: 2px;
+      text-underline-offset: 5px;
     }
 
     .meta {
@@ -225,14 +390,14 @@
       flex-wrap: wrap;
       align-items: center;
       color: var(--muted);
-      font-size: 14px;
+      font: 14px / 1.4 var(--font-ui);
     }
 
     .dot {
-      width: 4px;
-      height: 4px;
+      width: 5px;
+      height: 5px;
       border-radius: 999px;
-      background: rgba(109, 98, 88, 0.36);
+      background: rgba(185, 170, 146, 0.42);
     }
 
     .actions {
@@ -244,25 +409,50 @@
     }
 
     .action-link.primary {
-      color: #fff7f1;
+      color: #21170b;
       border-color: transparent;
-      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-      box-shadow: 0 10px 30px rgba(179, 77, 34, 0.18);
+      background: linear-gradient(135deg, var(--accent-strong), #e58c32);
+      box-shadow: 0 14px 34px rgba(226, 155, 69, 0.24);
+    }
+
+    .action-link.danger {
+      color: #ffd6d1;
+      border-color: rgba(255, 125, 110, 0.3);
+      background: var(--danger-soft);
+    }
+
+    .action-link[disabled] {
+      cursor: not-allowed;
+      opacity: 0.58;
+      transform: none;
     }
 
     .state {
-      padding: 22px 20px;
-      border-radius: 18px;
-      border: 1px dashed var(--line);
-      background: rgba(255, 255, 255, 0.48);
+      padding: 30px 22px;
+      border-radius: 24px;
+      border: 1px dashed var(--line-strong);
+      background: rgba(255, 255, 255, 0.04);
       color: var(--muted);
       text-align: center;
+      font-size: 17px;
+    }
+
+    @keyframes page-in {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.992);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
     }
 
     @keyframes rise {
       from {
         opacity: 0;
-        transform: translateY(8px);
+        transform: translateY(10px);
       }
 
       to {
@@ -272,6 +462,20 @@
     }
 
     @media (max-width: 820px) {
+      body {
+        padding: 14px;
+      }
+
+      main {
+        border-radius: 26px;
+      }
+
+      .hero,
+      .panel {
+        padding-left: 22px;
+        padding-right: 22px;
+      }
+
       .toolbar {
         grid-template-columns: 1fr;
       }
@@ -287,6 +491,15 @@
       .actions {
         justify-content: flex-start;
       }
+
+      .manager {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .manager-actions {
+        justify-content: flex-start;
+      }
     }
   </style>
 </head>
@@ -300,6 +513,7 @@
         <a class="nav-link" href="/">${NAV_ROOT}</a>
         <a class="nav-link" href="/uploads/">${NAV_UPLOADS}</a>
         <a class="nav-link" href="/upload">${NAV_UPLOAD}</a>
+        <a class="nav-link" href="${PROJECT_URL}" target="_blank" rel="noopener noreferrer">${NAV_PROJECT}</a>
         <a class="nav-link" id="parent-link" href="/" hidden>${NAV_PARENT}</a>
       </div>
     </section>
@@ -312,6 +526,16 @@
         <div class="stats">
           <div class="chip" id="count-chip">0 ${COUNT_SUFFIX}</div>
           <div class="chip" id="path-chip">/</div>
+        </div>
+      </div>
+      <div class="manager" id="manager-panel" hidden>
+        <div>
+          <strong id="manager-title"></strong>
+          <p id="manager-text"></p>
+        </div>
+        <div class="manager-actions">
+          <a class="action-link primary" id="manager-login" href="/upload?next=/uploads/">${MANAGE_LOGIN}</a>
+          <button class="action-link" id="manager-logout" type="button" hidden>${MANAGE_LOGOUT}</button>
         </div>
       </div>
       <div class="state" id="state">${BROWSER_LOADING}</div>
@@ -341,7 +565,16 @@
       labelCopy: ${JS_LABEL_COPY},
       labelCopied: ${JS_LABEL_COPIED},
       labelCopyFail: ${JS_LABEL_COPY_FAIL},
-      labelDownload: ${JS_LABEL_DOWNLOAD}
+      labelDownload: ${JS_LABEL_DOWNLOAD},
+      labelDelete: ${JS_LABEL_DELETE},
+      labelDeleting: ${JS_LABEL_DELETING},
+      labelDeleted: ${JS_LABEL_DELETED},
+      labelDeleteFailed: ${JS_LABEL_DELETE_FAILED},
+      labelDeleteConfirm: ${JS_LABEL_DELETE_CONFIRM},
+      manageReadyTitle: ${JS_MANAGE_READY_TITLE},
+      manageReadyText: ${JS_MANAGE_READY_TEXT},
+      manageLockedTitle: ${JS_MANAGE_LOCKED_TITLE},
+      manageLockedText: ${JS_MANAGE_LOCKED_TEXT}
     };
 
     const siteTitle = ${JS_SITE_TITLE};
@@ -355,11 +588,18 @@
     const countChip = document.getElementById("count-chip");
     const pathChip = document.getElementById("path-chip");
     const parentLink = document.getElementById("parent-link");
+    const managerPanel = document.getElementById("manager-panel");
+    const managerTitle = document.getElementById("manager-title");
+    const managerText = document.getElementById("manager-text");
+    const managerLogin = document.getElementById("manager-login");
+    const managerLogout = document.getElementById("manager-logout");
     const state = document.getElementById("state");
     const list = document.getElementById("list");
 
     const currentPath = location.pathname.endsWith("/") ? location.pathname : `${location.pathname}/`;
     const dataUrl = `/_listing${currentPath}`;
+    const isUploadRoot = currentPath === "/uploads/";
+    let canDeleteItems = false;
     let items = [];
 
     function formatBytes(bytes) {
@@ -436,6 +676,19 @@
       list.hidden = true;
     }
 
+    function updateManagerPanel() {
+      if (!isUploadRoot) {
+        managerPanel.hidden = true;
+        return;
+      }
+
+      managerPanel.hidden = false;
+      managerTitle.textContent = canDeleteItems ? I18N.manageReadyTitle : I18N.manageLockedTitle;
+      managerText.textContent = canDeleteItems ? I18N.manageReadyText : I18N.manageLockedText;
+      managerLogin.hidden = canDeleteItems;
+      managerLogout.hidden = !canDeleteItems;
+    }
+
     function renderList() {
       const keyword = filterInput.value.trim().toLowerCase();
       const filtered = items.filter((item) => item.name.toLowerCase().includes(keyword));
@@ -456,6 +709,9 @@
         const secondaryAttrs = isDirectory
           ? `data-copy="${escapeHtml(location.origin + href)}"`
           : `href="${escapeHtml(href)}" download`;
+        const deleteAction = canDeleteItems && !isDirectory
+          ? `<button class="action-link danger" type="button" data-delete-name="${escapeHtml(item.name)}" data-delete-href="${escapeHtml(href)}">${I18N.labelDelete}</button>`
+          : "";
         const sizeText = isDirectory ? I18N.labelDir : formatBytes(item.size);
         const timeText = formatTime(item.mtime);
 
@@ -476,6 +732,7 @@
                 ${isDirectory
                   ? `<a class="action-link" href="#" ${secondaryAttrs}>${secondaryLabel}</a>`
                   : `<a class="action-link" ${secondaryAttrs}>${secondaryLabel}</a>`}
+                ${deleteAction}
               </div>
             </div>
           </li>
@@ -497,6 +754,38 @@
           }
         });
       });
+
+      list.querySelectorAll("[data-delete-name]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const name = button.getAttribute("data-delete-name");
+          const href = button.getAttribute("data-delete-href");
+
+          if (!window.confirm(I18N.labelDeleteConfirm.replace("{name}", name))) {
+            return;
+          }
+
+          button.disabled = true;
+          button.textContent = I18N.labelDeleting;
+
+          try {
+            const response = await fetch(`/_upload_api/${encodeURIComponent(name)}`, {
+              method: "DELETE",
+              cache: "no-store"
+            });
+
+            if (!response.ok && response.status !== 404) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+
+            items = items.filter((item) => joinPath(currentPath, item.name, false) !== href);
+            button.textContent = I18N.labelDeleted;
+            renderList();
+          } catch (error) {
+            button.disabled = false;
+            button.textContent = `${I18N.labelDeleteFailed}: ${error.message}`;
+          }
+        });
+      });
     }
 
     async function loadItems() {
@@ -504,6 +793,16 @@
       setState(I18N.stateLoading);
 
       try {
+        if (isUploadRoot) {
+          try {
+            const sessionResponse = await fetch("/_session_status", { cache: "no-store" });
+            canDeleteItems = sessionResponse.status === 204;
+          } catch (error) {
+            canDeleteItems = false;
+          }
+        }
+        updateManagerPanel();
+
         const response = await fetch(dataUrl, { cache: "no-store" });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -526,6 +825,15 @@
     }
 
     filterInput.addEventListener("input", renderList);
+    managerLogout.addEventListener("click", async () => {
+      try {
+        await fetch("/_session_logout", { cache: "no-store" });
+      } catch (error) {
+      }
+      canDeleteItems = false;
+      updateManagerPanel();
+      renderList();
+    });
     loadItems();
   </script>
 </body>
