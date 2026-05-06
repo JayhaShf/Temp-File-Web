@@ -5,106 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${SITE_TITLE} ${BROWSER_TITLE_SUFFIX}</title>
   <style>
-    :root {
-      color-scheme: dark;
-      --ink: #f5ead8;
-      --text: #f7efe1;
-      --muted: #b9aa92;
-      --dim: #786e5e;
-      --coal: #171512;
-      --coal-soft: #201c17;
-      --card: rgba(35, 30, 24, 0.78);
-      --card-strong: rgba(49, 41, 31, 0.9);
-      --line: rgba(245, 218, 174, 0.18);
-      --line-strong: rgba(245, 218, 174, 0.32);
-      --accent: #e29b45;
-      --accent-strong: #ffbf66;
-      --accent-soft: rgba(226, 155, 69, 0.16);
-      --green: #7fcda2;
-      --green-soft: rgba(127, 205, 162, 0.15);
-      --danger: #ff7d6e;
-      --danger-soft: rgba(255, 125, 110, 0.13);
-      --shadow: rgba(0, 0, 0, 0.44);
-      --font-body: "LXGW WenKai", "Noto Serif SC", "Songti SC", "STSong", "Microsoft YaHei", serif;
-      --font-ui: "Avenir Next", "Trebuchet MS", "Noto Sans SC", sans-serif;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: var(--font-body);
-      color: var(--text);
-      background:
-        radial-gradient(circle at 12% 12%, rgba(226, 155, 69, 0.24), transparent 30%),
-        radial-gradient(circle at 86% 18%, rgba(127, 205, 162, 0.16), transparent 26%),
-        radial-gradient(circle at 52% 92%, rgba(255, 125, 110, 0.12), transparent 28%),
-        linear-gradient(135deg, #14110e 0%, #241b12 48%, #101412 100%);
-      padding: 30px;
-      overflow-x: hidden;
-    }
-
-    body::before,
-    body::after {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-    }
-
-    body::before {
-      opacity: 0.36;
-      background-image:
-        linear-gradient(rgba(245, 218, 174, 0.045) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(245, 218, 174, 0.045) 1px, transparent 1px);
-      background-size: 42px 42px;
-      mask-image: radial-gradient(circle at center, #000 0 58%, transparent 82%);
-    }
-
-    body::after {
-      opacity: 0.09;
-      background-image: radial-gradient(circle, #fff 0 0.7px, transparent 0.8px);
-      background-size: 9px 9px;
-      mix-blend-mode: screen;
-    }
-
-    main {
-      position: relative;
-      width: min(1120px, 100%);
-      margin: 0 auto;
-      border: 1px solid var(--line);
-      border-radius: 34px;
-      background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.07), transparent 34%),
-        linear-gradient(180deg, rgba(40, 34, 27, 0.88), rgba(25, 22, 18, 0.9));
-      box-shadow: 0 32px 120px var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-      overflow: hidden;
-      backdrop-filter: blur(18px);
-      animation: page-in 460ms ease both;
-    }
-
-    main::before {
-      content: "";
-      position: absolute;
-      inset: 14px;
-      border: 1px solid rgba(245, 218, 174, 0.08);
-      border-radius: 24px;
-      pointer-events: none;
-    }
-
-    .hero {
-      position: relative;
-      padding: 42px 44px 34px;
-      border-bottom: 1px solid var(--line);
-      background:
-        linear-gradient(110deg, rgba(226, 155, 69, 0.18), transparent 52%),
-        radial-gradient(circle at 88% 14%, rgba(255, 191, 102, 0.17), transparent 26%);
-      overflow: hidden;
-    }
-
+    ${SHARED_STYLES}
+  </style>
+  <style>
     .hero::after {
       content: "TFW";
       position: absolute;
@@ -116,62 +19,6 @@
       pointer-events: none;
     }
 
-    .eyebrow {
-      position: relative;
-      z-index: 1;
-      display: inline-flex;
-      align-items: center;
-      gap: 9px;
-      padding: 7px 13px;
-      border: 1px solid rgba(226, 155, 69, 0.24);
-      border-radius: 999px;
-      font: 700 12px / 1 var(--font-ui);
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--accent-strong);
-      background: rgba(226, 155, 69, 0.1);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-      margin-bottom: 18px;
-    }
-
-    .eyebrow::before {
-      content: "";
-      width: 7px;
-      height: 7px;
-      border-radius: 999px;
-      background: var(--accent-strong);
-      box-shadow: 0 0 20px var(--accent-strong);
-    }
-
-    h1 {
-      position: relative;
-      z-index: 1;
-      margin: 0 0 12px;
-      max-width: 780px;
-      font-size: clamp(34px, 5.2vw, 66px);
-      line-height: 0.98;
-      letter-spacing: -0.055em;
-      text-wrap: balance;
-    }
-
-    p {
-      position: relative;
-      z-index: 1;
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.75;
-    }
-
-    .nav {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 24px;
-    }
-
-    a.nav-link,
     a.action-link,
     button.action-link {
       appearance: none;
@@ -188,7 +35,6 @@
       cursor: pointer;
     }
 
-    a.nav-link:hover,
     a.action-link:hover,
     button.action-link:hover {
       transform: translateY(-2px);
@@ -197,49 +43,12 @@
       box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
 
-    .panel {
-      padding: 34px 44px 42px;
-    }
-
     .toolbar {
       display: grid;
       gap: 18px;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: end;
       margin-bottom: 22px;
-    }
-
-    .field {
-      display: grid;
-      gap: 9px;
-    }
-
-    .field label {
-      font: 700 13px / 1 var(--font-ui);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--dim);
-    }
-
-    .field input {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      padding: 16px 18px;
-      font: 18px / 1.3 var(--font-body);
-      color: var(--text);
-      background: rgba(13, 12, 10, 0.34);
-      outline: none;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    }
-
-    .field input::placeholder {
-      color: rgba(185, 170, 146, 0.62);
-    }
-
-    .field input:focus {
-      border-color: rgba(255, 191, 102, 0.58);
-      box-shadow: 0 0 0 4px rgba(226, 155, 69, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07);
     }
 
     .stats {
@@ -437,45 +246,7 @@
       font-size: 17px;
     }
 
-    @keyframes page-in {
-      from {
-        opacity: 0;
-        transform: translateY(12px) scale(0.992);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
-    }
-
-    @keyframes rise {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
     @media (max-width: 820px) {
-      body {
-        padding: 14px;
-      }
-
-      main {
-        border-radius: 26px;
-      }
-
-      .hero,
-      .panel {
-        padding-left: 22px;
-        padding-right: 22px;
-      }
-
       .toolbar {
         grid-template-columns: 1fr;
       }
