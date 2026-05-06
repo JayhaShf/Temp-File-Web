@@ -47,7 +47,7 @@
 
     location = /_auth_upload_gate {
         internal;
-        if ($cookie_${AUTH_COOKIE_NAME} = "${AUTH_SESSION_TOKEN}") {
+        if ($auth_session_valid) {
             return 204;
         }
         auth_basic "file-upload";
@@ -65,7 +65,7 @@
 
     location = /_session_status {
         add_header Cache-Control "no-store" always;
-        if ($cookie_${AUTH_COOKIE_NAME} = "${AUTH_SESSION_TOKEN}") {
+        if ($auth_session_valid) {
             return 204;
         }
         return 401;
@@ -85,16 +85,16 @@
         auth_request /_auth_upload_gate;
         alias ${UPLOAD_DIR}/;
         client_max_body_size ${MAX_UPLOAD_SIZE};
-        dav_methods PUT;
+        dav_methods PUT DELETE;
         create_full_put_path off;
         dav_access user:rw group:r all:r;
 
-        limit_except PUT OPTIONS {
+        limit_except PUT DELETE OPTIONS {
             deny all;
         }
 
         if ($request_method = OPTIONS) {
-            add_header Allow "PUT, OPTIONS" always;
+            add_header Allow "PUT, DELETE, OPTIONS" always;
             return 204;
         }
     }

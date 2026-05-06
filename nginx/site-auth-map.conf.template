@@ -1,0 +1,4 @@
+map $cookie_${AUTH_COOKIE_NAME} $auth_session_valid {
+    default 0;
+    "${AUTH_SESSION_TOKEN}" 1;
+}

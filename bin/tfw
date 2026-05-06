@@ -14,6 +14,7 @@ SITE_ID="${SITE_ID:-site}"
 IP="${IP:-127.0.0.1}"
 ACCESS_HOST="${ACCESS_HOST:-${DOMAIN:-$IP}}"
 SITE_TITLE="${SITE_TITLE:-Temp File Web}"
+PROJECT_URL="${PROJECT_URL:-https://github.com/JayhaShf/Temp-File-Web}"
 LANGUAGE="${LANGUAGE:-en}"
 INSTALL_ACME="${INSTALL_ACME:-1}"
 SITE_MODE="${SITE_MODE:-https}"
@@ -34,33 +35,42 @@ KEY_FILE="${KEY_FILE:-$SITE_DIR/certs/$SITE_ID.key}"
 MAX_UPLOAD_SIZE="${MAX_UPLOAD_SIZE:-2g}"
 ACME_HOME="${ACME_HOME:-/root/.acme.sh}"
 ACME_BIN="${ACME_BIN:-$ACME_HOME/acme.sh}"
+TFW_PROJECT_DIR="${TFW_PROJECT_DIR:-}"
 TFW_USER="${TFW_USER:-www-data}"
 
 url_scheme="https"
 url_port="$HTTPS_PORT"
+default_port="443"
 if [[ "$SITE_MODE" == "http" ]]; then
   url_scheme="http"
   url_port="$HTTP_PORT"
+  default_port="80"
 fi
 
-url_authority="$ACCESS_HOST"
-default_port="$HTTPS_PORT"
-if [[ "$SITE_MODE" == "http" ]]; then
-  default_port="$HTTP_PORT"
+display_host="$ACCESS_HOST"
+if [[ "$display_host" == *:* && "$display_host" != \[*\] ]]; then
+  display_host="[$display_host]"
 fi
 
+resolve_host="${ACCESS_HOST#[}"
+resolve_host="${resolve_host%]}"
+resolve_ip="$IP"
+if [[ "$resolve_ip" == *:* && "$resolve_ip" != \[*\] ]]; then
+  resolve_ip="[$resolve_ip]"
+fi
+
+url_authority="$display_host"
 if [[ "$url_port" != "$default_port" ]]; then
-  url_authority="${ACCESS_HOST}:${url_port}"
-elif [[ "$SITE_MODE" == "http" && "$HTTP_PORT" != "80" ]]; then
-  url_authority="${ACCESS_HOST}:${HTTP_PORT}"
-elif [[ "$SITE_MODE" == "https" && "$HTTPS_PORT" != "443" ]]; then
-  url_authority="${ACCESS_HOST}:${HTTPS_PORT}"
+  url_authority="${display_host}:${url_port}"
 fi
 
 url_root="${url_scheme}://${url_authority}/"
 url_upload="${url_scheme}://${url_authority}/upload"
+url_upload_manage="${url_scheme}://${url_authority}/upload?next=/uploads/"
 url_uploads="${url_scheme}://${url_authority}/uploads/"
 url_listing="${url_scheme}://${url_authority}/_listing/"
+url_session_login="${url_scheme}://${url_authority}/_session_login"
+url_session_status="${url_scheme}://${url_authority}/_session_status"
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -85,7 +95,11 @@ msg() {
         need_root) echo "需要 root 权限" ;;
         ok_dir) echo "正常（目录）" ;;
         ok_file) echo "正常（文件）" ;;
+        ok_writable) echo "正常（可写）" ;;
+        ok_readable) echo "正常（可读）" ;;
         missing) echo "缺失" ;;
+        readonly) echo "不可写" ;;
+        unreadable) echo "不可读" ;;
         host_time) echo "本地时间" ;;
         utc_time) echo "UTC 时间" ;;
         host_name) echo "主机名" ;;
@@ -93,6 +107,7 @@ msg() {
         language) echo "语言" ;;
         site_mode) echo "站点模式" ;;
         site_title) echo "站点标题" ;;
+        project_url) echo "项目地址" ;;
         site_id) echo "站点标识" ;;
         domain) echo "域名" ;;
         access_host) echo "访问主机" ;;
@@ -117,8 +132,17 @@ msg() {
         auth_user) echo "上传用户" ;;
         root_url) echo "根地址" ;;
         upload_page) echo "上传页面" ;;
+        upload_manage) echo "上传管理" ;;
         uploads_dir) echo "上传目录地址" ;;
         listing_api) echo "目录接口" ;;
+        session_status) echo "会话状态（未登录预期 401）" ;;
+        login_verify) echo "错误密码保护（预期 401）" ;;
+        auth_endpoint) echo "认证端点" ;;
+        auth_invalid) echo "错误密码（预期 401）" ;;
+        auth_valid) echo "指定密码校验" ;;
+        auth_current) echo "当前认证用户" ;;
+        upload_api_options) echo "上传 API OPTIONS" ;;
+        config_dump) echo "配置内容" ;;
         status_time) echo "时间" ;;
         summary) echo "摘要" ;;
         summary_ok) echo "站点可访问" ;;
@@ -136,12 +160,13 @@ msg() {
         root_page) echo "根页面" ;;
         uploads_page) echo "上传目录页面" ;;
         listing_json) echo "目录 JSON" ;;
-        upload_expect) echo "上传页（预期 401）" ;;
+        upload_expect) echo "上传页面" ;;
+        upload_api_expect) echo "上传 API（未登录预期 401）" ;;
         listing_count) echo "目录数量" ;;
         dir_not_found) echo "目录不存在: $2" ;;
         directory) echo "目录" ;;
         unknown_log_target) echo "未知日志类型: $2" ;;
-        logs_usage) echo "用法: tfw logs [access|error] [lines]" ;;
+        logs_usage) echo "用法: tfw logs [access|error|all] [lines]" ;;
         lines_integer) echo "lines 必须是整数" ;;
         log_not_found) echo "日志不存在: $2" ;;
         log_file) echo "日志文件" ;;
@@ -151,6 +176,7 @@ msg() {
         restart_ok) echo "systemctl 成功" ;;
         reload_ok) echo "reload 成功" ;;
         passwd_usage) echo "用法: tfw passwd [user] [password]" ;;
+        auth_usage) echo "用法: tfw auth [user] [password]" ;;
         passwd_user_prompt) echo "用户" ;;
         passwd_new_prompt) echo "新密码（留空随机生成）" ;;
         passwd_confirm) echo "确认" ;;
@@ -166,13 +192,27 @@ msg() {
         help_urls) echo "显示公开访问地址" ;;
         help_cert) echo "显示证书相关路径" ;;
         help_status) echo "执行 nginx 与 HTTP 检查" ;;
+        help_auth) echo "检查上传认证端点" ;;
+        help_config_cmd) echo "输出当前运行配置内容" ;;
+        help_doctor) echo "检查本地配置、权限和关键路径" ;;
         help_test) echo "执行 nginx -t" ;;
         help_ls) echo "列出目录文件" ;;
         help_logs) echo "查看日志尾部" ;;
         help_restart) echo "检查并重启/重载 nginx" ;;
         help_passwd) echo "轮换上传认证密码" ;;
+        help_session) echo "查看或轮换会话 token" ;;
+        help_update) echo "检查或拉取更新" ;;
+        help_uninstall) echo "交互式卸载站点" ;;
         help_config) echo "配置来源" ;;
         help_default_config) echo "默认运行配置" ;;
+        uninstall_title) echo "这将删除 tfw、Nginx 站点配置、认证文件和渲染页面。" ;;
+        uninstall_data_dir) echo "数据目录" ;;
+        uninstall_certs_dir) echo "证书目录" ;;
+        uninstall_confirm) echo "确认继续? [y/N]" ;;
+        uninstall_keep_data) echo "保留数据目录? [Y/n]" ;;
+        uninstall_keep_certs) echo "保留证书目录? [Y/n]" ;;
+        uninstall_aborted) echo "已取消。" ;;
+        uninstall_no_project) echo "未找到项目目录或 install.sh。" ;;
         help_override) echo "可覆盖为" ;;
         unknown_command) echo "未知命令: $2" ;;
       esac
@@ -183,7 +223,11 @@ msg() {
         need_root) echo "need root" ;;
         ok_dir) echo "ok (dir)" ;;
         ok_file) echo "ok (file)" ;;
+        ok_writable) echo "ok (writable)" ;;
+        ok_readable) echo "ok (readable)" ;;
         missing) echo "missing" ;;
+        readonly) echo "not writable" ;;
+        unreadable) echo "not readable" ;;
         host_time) echo "local" ;;
         utc_time) echo "utc" ;;
         host_name) echo "host" ;;
@@ -191,6 +235,7 @@ msg() {
         language) echo "language" ;;
         site_mode) echo "site mode" ;;
         site_title) echo "site title" ;;
+        project_url) echo "project url" ;;
         site_id) echo "site id" ;;
         domain) echo "domain" ;;
         access_host) echo "access host" ;;
@@ -215,8 +260,17 @@ msg() {
         auth_user) echo "auth user" ;;
         root_url) echo "root" ;;
         upload_page) echo "upload page" ;;
+        upload_manage) echo "upload manage" ;;
         uploads_dir) echo "uploads dir" ;;
         listing_api) echo "listing api" ;;
+        session_status) echo "session status (expect 401 when signed out)" ;;
+        login_verify) echo "invalid password protection (expect 401)" ;;
+        auth_endpoint) echo "auth endpoint" ;;
+        auth_invalid) echo "invalid password (expect 401)" ;;
+        auth_valid) echo "provided password verify" ;;
+        auth_current) echo "current auth user" ;;
+        upload_api_options) echo "upload api options" ;;
+        config_dump) echo "config content" ;;
         status_time) echo "time" ;;
         summary) echo "summary" ;;
         summary_ok) echo "site reachable" ;;
@@ -234,12 +288,13 @@ msg() {
         root_page) echo "root page" ;;
         uploads_page) echo "uploads page" ;;
         listing_json) echo "listing json" ;;
-        upload_expect) echo "upload page (expect 401)" ;;
+        upload_expect) echo "upload page" ;;
+        upload_api_expect) echo "upload api (expect 401 when signed out)" ;;
         listing_count) echo "listing count" ;;
         dir_not_found) echo "directory not found: $2" ;;
         directory) echo "directory" ;;
         unknown_log_target) echo "unknown log target: $2" ;;
-        logs_usage) echo "use: tfw logs [access|error] [lines]" ;;
+        logs_usage) echo "use: tfw logs [access|error|all] [lines]" ;;
         lines_integer) echo "lines must be an integer" ;;
         log_not_found) echo "log not found: $2" ;;
         log_file) echo "log file" ;;
@@ -249,6 +304,7 @@ msg() {
         restart_ok) echo "systemctl ok" ;;
         reload_ok) echo "reload ok" ;;
         passwd_usage) echo "use: tfw passwd [user] [password]" ;;
+        auth_usage) echo "use: tfw auth [user] [password]" ;;
         passwd_user_prompt) echo "user" ;;
         passwd_new_prompt) echo "new password (empty = random)" ;;
         passwd_confirm) echo "confirm" ;;
@@ -264,13 +320,27 @@ msg() {
         help_urls) echo "show public URLs" ;;
         help_cert) echo "show certificate paths" ;;
         help_status) echo "run nginx and HTTP checks" ;;
+        help_auth) echo "check upload auth endpoints" ;;
+        help_config_cmd) echo "print current runtime config content" ;;
+        help_doctor) echo "check local config, permissions and key paths" ;;
         help_test) echo "run nginx -t" ;;
         help_ls) echo "list files in a directory" ;;
         help_logs) echo "tail logs" ;;
         help_restart) echo "test and restart/reload nginx" ;;
         help_passwd) echo "rotate upload auth password" ;;
+        help_session) echo "view or rotate session token" ;;
+        help_update) echo "check or pull updates" ;;
+        help_uninstall) echo "interactive uninstall" ;;
         help_config) echo "Config source" ;;
         help_default_config) echo "default runtime config" ;;
+        uninstall_title) echo "This will remove tfw, Nginx site config, auth files, and rendered pages." ;;
+        uninstall_data_dir) echo "Data dir" ;;
+        uninstall_certs_dir) echo "Certs dir" ;;
+        uninstall_confirm) echo "Continue? [y/N]" ;;
+        uninstall_keep_data) echo "Keep data directory? [Y/n]" ;;
+        uninstall_keep_certs) echo "Keep certificate directory? [Y/n]" ;;
+        uninstall_aborted) echo "Aborted." ;;
+        uninstall_no_project) echo "Project directory or install.sh not found." ;;
         help_override) echo "override with" ;;
         unknown_command) echo "unknown command: $2" ;;
       esac
@@ -305,6 +375,32 @@ path_state() {
   else
     echo "$(msg missing)"
   fi
+}
+
+write_state() {
+  local path="$1"
+  if [[ -d "$path" && -w "$path" ]]; then
+    echo "$(msg ok_writable)"
+  elif [[ -e "$path" ]]; then
+    echo "$(msg readonly)"
+  else
+    echo "$(msg missing)"
+  fi
+}
+
+read_state() {
+  local path="$1"
+  if [[ -r "$path" ]]; then
+    echo "$(msg ok_readable)"
+  elif [[ -e "$path" ]]; then
+    echo "$(msg unreadable)"
+  else
+    echo "$(msg missing)"
+  fi
+}
+
+print_kv() {
+  printf '%-15s: %s\n' "$1" "$2"
 }
 
 count_entries() {
@@ -361,11 +457,20 @@ resolve_dir() {
 http_code() {
   local url="$1"
   local auth="${2:-}"
+  local method="${3:-GET}"
+  local code
   if [[ -n "$auth" ]]; then
-    curl -sk -o /dev/null -w '%{http_code}' --resolve "${ACCESS_HOST}:${url_port}:${IP}" -u "$auth" "$url" 2>/dev/null || echo ERR
+    code="$(curl -sk -o /dev/null -w '%{http_code}' -X "$method" --resolve "${resolve_host}:${url_port}:${resolve_ip}" -u "$auth" "$url" 2>/dev/null)" || {
+      echo ERR
+      return 0
+    }
   else
-    curl -sk -o /dev/null -w '%{http_code}' --resolve "${ACCESS_HOST}:${url_port}:${IP}" "$url" 2>/dev/null || echo ERR
+    code="$(curl -sk -o /dev/null -w '%{http_code}' -X "$method" --resolve "${resolve_host}:${url_port}:${resolve_ip}" "$url" 2>/dev/null)" || {
+      echo ERR
+      return 0
+    }
   fi
+  echo "$code"
 }
 
 show_time() {
@@ -377,8 +482,10 @@ show_time() {
 show_urls() {
   echo "$(printf '%-15s: %s' "$(msg root_url)" "$url_root")"
   echo "$(printf '%-15s: %s' "$(msg upload_page)" "$url_upload")"
+  echo "$(printf '%-15s: %s' "$(msg upload_manage)" "$url_upload_manage")"
   echo "$(printf '%-15s: %s' "$(msg uploads_dir)" "$url_uploads")"
   echo "$(printf '%-15s: %s' "$(msg listing_api)" "$url_listing")"
+  echo "$(printf '%-15s: %s' "$(msg project_url)" "$PROJECT_URL")"
 }
 
 show_info() {
@@ -394,6 +501,7 @@ show_info() {
   echo "$(printf '%-15s: %s' "$(msg language)" "$LANGUAGE")"
   echo "$(printf '%-15s: %s' "$(msg site_mode)" "$SITE_MODE")"
   echo "$(printf '%-15s: %s' "$(msg site_title)" "$SITE_TITLE")"
+  echo "$(printf '%-15s: %s' "$(msg project_url)" "$PROJECT_URL")"
   echo "$(printf '%-15s: %s' "$(msg site_id)" "$SITE_ID")"
   if [[ -n "$DOMAIN" ]]; then
     echo "$(printf '%-15s: %s' "$(msg domain)" "$DOMAIN")"
@@ -429,7 +537,7 @@ test_nginx() {
 
 show_status() {
   local listing_payload listing_count auth_user_name nginx_test_text nginx_process_text
-  local root_code uploads_code listing_code upload_code summary_text
+  local root_code uploads_code listing_code upload_code session_code upload_api_code login_verify_code summary_text
   if ! command -v nginx >/dev/null 2>&1; then
     echo "$(msg missing_command nginx)" >&2
     exit 1
@@ -439,7 +547,7 @@ show_status() {
     exit 1
   fi
 
-  listing_payload="$(curl -sk --resolve "${ACCESS_HOST}:${url_port}:${IP}" "$url_listing" 2>/dev/null || true)"
+  listing_payload="$(curl -sk --resolve "${resolve_host}:${url_port}:${resolve_ip}" "$url_listing" 2>/dev/null || true)"
   listing_count="$(printf '%s' "$listing_payload" | grep -o '"name":"' | wc -l | awk '{print $1}')"
   auth_user_name="$(auth_user || true)"
   if nginx -t >/dev/null 2>&1; then
@@ -477,10 +585,17 @@ show_status() {
   uploads_code="$(http_code "$url_uploads")"
   listing_code="$(http_code "$url_listing")"
   upload_code="$(http_code "$url_upload")"
+  session_code="$(http_code "$url_session_status")"
+  upload_api_code="$(http_code "${url_scheme}://${url_authority}/_upload_api/.tfw-status-probe" "" OPTIONS)"
+  if [[ -n "$auth_user_name" ]]; then
+    login_verify_code="$(http_code "$url_session_login" "${auth_user_name}:__tfw_invalid_password__")"
+  else
+    login_verify_code="$(msg none)"
+  fi
 
-  if [[ "$root_code" == "200" && "$uploads_code" == "200" && "$listing_code" == "200" ]]; then
+  if [[ "$root_code" == "200" && "$uploads_code" == "200" && "$listing_code" == "200" && "$upload_code" == "200" ]]; then
     summary_text="$(msg summary_ok)"
-  elif [[ "$root_code" == "200" || "$uploads_code" == "200" || "$listing_code" == "200" ]]; then
+  elif [[ "$root_code" == "200" || "$uploads_code" == "200" || "$listing_code" == "200" || "$upload_code" == "200" ]]; then
     summary_text="$(msg summary_partial)"
   else
     summary_text="$(msg summary_fail)"
@@ -491,6 +606,9 @@ show_status() {
   echo "$(printf '%-15s: %s' "$(msg uploads_page)" "$uploads_code")"
   echo "$(printf '%-15s: %s' "$(msg listing_json)" "$listing_code")"
   echo "$(printf '%-15s: %s' "$(msg upload_expect)" "$upload_code")"
+  echo "$(printf '%-15s: %s' "$(msg session_status)" "$session_code")"
+  echo "$(printf '%-15s: %s' "$(msg upload_api_expect)" "$upload_api_code")"
+  echo "$(printf '%-15s: %s' "$(msg login_verify)" "$login_verify_code")"
   echo "$(printf '%-15s: %s' "$(msg listing_count)" "${listing_count:-0}")"
 }
 
@@ -513,6 +631,11 @@ show_logs() {
   local lines="${2:-50}"
   local file
 
+  [[ "$lines" =~ ^[0-9]+$ ]] || {
+    echo "$(msg lines_integer)" >&2
+    exit 1
+  }
+
   case "$target" in
     access)
       file="$ACCESS_LOG"
@@ -520,17 +643,18 @@ show_logs() {
     error)
       file="$ERROR_LOG"
       ;;
+    all)
+      (show_logs access "$lines") || true
+      echo
+      (show_logs error "$lines") || true
+      return 0
+      ;;
     *)
       echo "$(msg unknown_log_target "$target")" >&2
       echo "$(msg logs_usage)" >&2
       exit 1
       ;;
   esac
-
-  [[ "$lines" =~ ^[0-9]+$ ]] || {
-    echo "$(msg lines_integer)" >&2
-    exit 1
-  }
 
   [[ -f "$file" ]] || {
     echo "$(msg log_not_found "$file")" >&2
@@ -624,7 +748,7 @@ rotate_passwd() {
     exit 1
   fi
 
-  code="$(http_code "$url_upload" "${user}:${password}")"
+  code="$(http_code "$url_session_login" "${user}:${password}")"
 
   echo "$(printf '%-15s: %s' "$(msg auth_user)" "$user")"
   echo "password        : $password"
@@ -651,6 +775,182 @@ show_cert() {
   echo "$(printf '%-15s: %s (%s)' "$(msg key_file)" "$KEY_FILE" "$(path_state "$KEY_FILE")")"
 }
 
+show_auth() {
+  need curl
+
+  local auth_user_name session_code upload_api_code invalid_code valid_code provided_user provided_password
+  provided_user="${1:-${TFW_AUTH_USER:-}}"
+  provided_password="${2:-${TFW_AUTH_PASSWORD:-}}"
+
+  [[ $# -le 2 ]] || {
+    echo "$(msg auth_usage)" >&2
+    exit 1
+  }
+
+  auth_user_name="$(auth_user || true)"
+  session_code="$(http_code "$url_session_status")"
+  upload_api_code="$(http_code "${url_scheme}://${url_authority}/_upload_api/.tfw-auth-probe" "" OPTIONS)"
+
+  if [[ -n "$auth_user_name" ]]; then
+    invalid_code="$(http_code "$url_session_login" "${auth_user_name}:__tfw_invalid_password__")"
+  else
+    invalid_code="$(msg none)"
+  fi
+
+  if [[ -n "$provided_user" && -n "$provided_password" ]]; then
+    valid_code="$(http_code "$url_session_login" "${provided_user}:${provided_password}")"
+  else
+    valid_code="$(msg none)"
+  fi
+
+  print_kv "$(msg auth_current)" "${auth_user_name:-$(msg none)}"
+  print_kv "$(msg auth_file)" "$AUTH_FILE ($(path_state "$AUTH_FILE"), $(read_state "$AUTH_FILE"))"
+  print_kv "$(msg auth_endpoint)" "$url_session_login"
+  print_kv "$(msg session_status)" "$session_code"
+  print_kv "$(msg auth_invalid)" "$invalid_code"
+  print_kv "$(msg auth_valid)" "$valid_code"
+  print_kv "$(msg upload_api_options)" "$upload_api_code"
+}
+
+show_config() {
+  print_kv "$(msg runtime_config)" "$CONFIG_FILE ($(path_state "$CONFIG_FILE"), $(read_state "$CONFIG_FILE"))"
+  if [[ -f "$CONFIG_FILE" ]]; then
+    echo
+    echo "$(msg config_dump):"
+    sed -n '1,240p' "$CONFIG_FILE"
+  fi
+}
+
+show_doctor() {
+  local auth_user_name
+  auth_user_name="$(auth_user || true)"
+
+  print_kv "$(msg runtime_config)" "$CONFIG_FILE ($(path_state "$CONFIG_FILE"), $(read_state "$CONFIG_FILE"))"
+  print_kv "$(msg config_file)" "$CONF ($(path_state "$CONF"), $(read_state "$CONF"))"
+  print_kv "$(msg site_dir)" "$SITE_DIR ($(path_state "$SITE_DIR"))"
+  print_kv "$(msg data_dir)" "$DATA_DIR ($(path_state "$DATA_DIR"), $(write_state "$DATA_DIR"))"
+  print_kv "$(msg upload_dir)" "$UPLOAD_DIR ($(path_state "$UPLOAD_DIR"), $(write_state "$UPLOAD_DIR"))"
+  print_kv "$(msg auth_file)" "$AUTH_FILE ($(path_state "$AUTH_FILE"), $(read_state "$AUTH_FILE"))"
+  print_kv "$(msg browser_html)" "$BROWSER_HTML ($(path_state "$BROWSER_HTML"), $(read_state "$BROWSER_HTML"))"
+  print_kv "$(msg upload_html)" "$UPLOAD_HTML ($(path_state "$UPLOAD_HTML"), $(read_state "$UPLOAD_HTML"))"
+  print_kv "$(msg cert_file)" "$CERT_FILE ($(path_state "$CERT_FILE"), $(read_state "$CERT_FILE"))"
+  print_kv "$(msg key_file)" "$KEY_FILE ($(path_state "$KEY_FILE"), $(read_state "$KEY_FILE"))"
+  print_kv "$(msg access_log)" "$ACCESS_LOG ($(path_state "$ACCESS_LOG"))"
+  print_kv "$(msg error_log)" "$ERROR_LOG ($(path_state "$ERROR_LOG"))"
+  print_kv "$(msg auth_user)" "${auth_user_name:-$(msg none)}"
+  print_kv "$(msg free_space)" "$(free_space "$DATA_DIR")"
+}
+
+do_update() {
+  local action="${1:-}"
+  local project_dir install_script
+
+  project_dir="${TFW_PROJECT_DIR:-}"
+  if [[ -z "$project_dir" ]]; then
+    echo "TFW_PROJECT_DIR not set." >&2
+    echo "Run tfw update from within the project directory, or set TFW_PROJECT_DIR in /etc/tfw/tfw.conf." >&2
+    exit 1
+  fi
+
+  if [[ ! -d "$project_dir" ]]; then
+    echo "Project directory not found: $project_dir" >&2
+    exit 1
+  fi
+
+  install_script="$project_dir/scripts/install.sh"
+  if [[ ! -f "$install_script" ]]; then
+    echo "install.sh not found in project directory: $install_script" >&2
+    exit 1
+  fi
+
+  case "$action" in
+    --check)
+      if ! command -v git >/dev/null 2>&1; then
+        echo "git not found; cannot check for updates." >&2
+        exit 1
+      fi
+      if [[ ! -d "$project_dir/.git" ]]; then
+        echo "$project_dir is not a git repository." >&2
+        exit 1
+      fi
+      echo "Fetching from origin..."
+      git -C "$project_dir" fetch origin 2>/dev/null || { echo "Fetch failed." >&2; exit 1; }
+      local behind
+      behind="$(git -C "$project_dir" rev-list HEAD..origin/main --count 2>/dev/null || echo "?")"
+      if [[ "$behind" == "0" ]]; then
+        echo "Already up to date."
+        exit 0
+      fi
+      echo "$behind commit(s) behind origin/main."
+      echo "Run 'tfw update --pull' to apply updates."
+      ;;
+    --pull)
+      if ! command -v git >/dev/null 2>&1; then
+        echo "git not found; cannot pull updates." >&2
+        exit 1
+      fi
+      if [[ ! -d "$project_dir/.git" ]]; then
+        echo "$project_dir is not a git repository." >&2
+        exit 1
+      fi
+      if [[ -n "$(git -C "$project_dir" status --porcelain 2>/dev/null)" ]]; then
+        echo "WARNING: Local modifications detected. Pull may cause conflicts."
+        echo "Continue? [y/N]"
+        local answer
+        read -r answer
+        [[ "$answer" == "y" || "$answer" == "Y" ]] || { echo "Aborted."; exit 0; }
+      fi
+      echo "Pulling from origin/main..."
+      git -C "$project_dir" pull origin main || { echo "Pull failed." >&2; exit 1; }
+      echo "Pull complete. Running upgrade..."
+      need_root
+      LANGUAGE="${LANGUAGE:-en}" bash "$install_script" upgrade
+      echo "Update complete."
+      ;;
+    "")
+      need_root
+      echo "Running upgrade from $project_dir..."
+      LANGUAGE="${LANGUAGE:-en}" bash "$install_script" upgrade
+      ;;
+    *)
+      echo "Usage: tfw update [--check|--pull]" >&2
+      exit 1
+      ;;
+  esac
+}
+
+do_uninstall() {
+  local keep_data=1 keep_certs=1 install_script project_dir answer
+
+  project_dir="${TFW_PROJECT_DIR:-}"
+  if [[ -z "$project_dir" || ! -d "$project_dir" ]]; then
+    echo "$(msg missing_runtime)" >&2
+    exit 1
+  fi
+
+  install_script="$project_dir/scripts/install.sh"
+  if [[ ! -f "$install_script" ]]; then
+    echo "$(msg uninstall_no_project): $install_script" >&2
+    exit 1
+  fi
+
+  echo "$(msg uninstall_title)"
+  printf '%-15s: %s\n' "$(msg uninstall_data_dir)" "${DATA_DIR:-/srv/tfw/data}"
+  printf '%-15s: %s\n' "$(msg uninstall_certs_dir)" "${SITE_DIR:-/etc/tfw/sites}/${SITE_ID:-site}/certs"
+  echo ""
+  read -r -p "$(msg uninstall_confirm): " answer
+  [[ "$answer" == "y" || "$answer" == "Y" ]] || { echo "$(msg uninstall_aborted)"; exit 0; }
+
+  read -r -p "$(msg uninstall_keep_data): " answer
+  if [[ "$answer" == "n" || "$answer" == "N" ]]; then keep_data=0; fi
+
+  read -r -p "$(msg uninstall_keep_certs): " answer
+  if [[ "$answer" == "n" || "$answer" == "N" ]]; then keep_certs=0; fi
+
+  need_root
+  UNINSTALL_KEEP_DATA="$keep_data" UNINSTALL_KEEP_CERTS="$keep_certs" LANGUAGE="${LANGUAGE:-en}" bash "$install_script" uninstall
+}
+
 usage() {
   local help_text
   help_text="$(cat <<'EOF'
@@ -659,12 +959,18 @@ tfw info                         __HELP_INFO__
 tfw urls                         __HELP_URLS__
 tfw cert                         __HELP_CERT__
 tfw status                       __HELP_STATUS__
+tfw auth [user] [password]       __HELP_AUTH__
+tfw config                       __HELP_CONFIG_CMD__
+tfw doctor                       __HELP_DOCTOR__
 tfw test                         __HELP_TEST__
 tfw ls [root|uploads|/path]      __HELP_LS__
-tfw logs [access|error] [lines]  __HELP_LOGS__
+tfw logs [access|error|all] [lines]  __HELP_LOGS__
 tfw restart                      __HELP_RESTART__
 tfw passwd [user] [password]     __HELP_PASSWD__
 
+	tfw session [rotate|show]          __HELP_SESSION__
+	tfw update [--check|--pull]        __HELP_UPDATE__
+	tfw uninstall                       __HELP_UNINSTALL__
 __HELP_CONFIG__:
   __HELP_DEFAULT_CONFIG__: /etc/tfw/tfw.conf
   __HELP_OVERRIDE__: TFW_CONFIG=/path/to/tfw.conf tfw info
@@ -676,11 +982,17 @@ EOF
     -e "s|__HELP_URLS__|$(msg help_urls)|g" \
     -e "s|__HELP_CERT__|$(msg help_cert)|g" \
     -e "s|__HELP_STATUS__|$(msg help_status)|g" \
+    -e "s|__HELP_AUTH__|$(msg help_auth)|g" \
+    -e "s|__HELP_CONFIG_CMD__|$(msg help_config_cmd)|g" \
+    -e "s|__HELP_DOCTOR__|$(msg help_doctor)|g" \
     -e "s|__HELP_TEST__|$(msg help_test)|g" \
     -e "s|__HELP_LS__|$(msg help_ls)|g" \
     -e "s|__HELP_LOGS__|$(msg help_logs)|g" \
     -e "s|__HELP_RESTART__|$(msg help_restart)|g" \
     -e "s|__HELP_PASSWD__|$(msg help_passwd)|g" \
+    -e "s|__HELP_SESSION__|$(msg help_session)|g" \
+    -e "s|__HELP_UPDATE__|$(msg help_update)|g" \
+    -e "s|__HELP_UNINSTALL__|$(msg help_uninstall)|g" \
     -e "s|__HELP_CONFIG__|$(msg help_config)|g" \
     -e "s|__HELP_DEFAULT_CONFIG__|$(msg help_default_config)|g" \
     -e "s|__HELP_OVERRIDE__|$(msg help_override)|g"
@@ -699,8 +1011,18 @@ case "${1:-}" in
   cert|certs)
     show_cert
     ;;
-  status)
+  status|health)
     show_status
+    ;;
+  auth)
+    shift
+    show_auth "$@"
+    ;;
+  config|conf)
+    show_config
+    ;;
+  doctor|check)
+    show_doctor
     ;;
   test|nginx-test)
     test_nginx
@@ -719,6 +1041,44 @@ case "${1:-}" in
   passwd)
     shift
     rotate_passwd "$@"
+    ;;
+  session)
+    shift
+    case "${1:-}" in
+      rotate|renew)
+        need_root
+        need openssl
+        new_token="$(openssl rand -hex 24)"
+        if [[ -f "$CONFIG_FILE" ]]; then
+          sed -i "s/^AUTH_SESSION_TOKEN=.*/AUTH_SESSION_TOKEN='$new_token'/" "$CONFIG_FILE"
+        fi
+        AUTH_MAP_FILE="${AUTH_MAP_FILE:-/etc/nginx/conf.d/temp-file-web-map.conf}"
+        if [[ -f "$AUTH_MAP_FILE" ]]; then
+          sed -i "s/\"[^\"]*\"/\"$new_token\"/" "$AUTH_MAP_FILE"
+        fi
+        if [[ -f "$CONF" ]]; then
+          sed -i "/Set-Cookie.*tfw_upload_auth=/s/tfw_upload_auth=[^;]*/tfw_upload_auth=$new_token/" "$CONF"
+        fi
+        nginx -t && (systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || true)
+        AUTH_SESSION_TOKEN="$new_token"
+        echo "Session token rotated."
+        echo "New token: $new_token"
+        ;;
+      show|status)
+        [[ -n "${AUTH_SESSION_TOKEN:-}" ]] && echo "AUTH_SESSION_TOKEN=${AUTH_SESSION_TOKEN}" || echo "AUTH_SESSION_TOKEN not set"
+        ;;
+      *)
+        echo "Usage: tfw session [rotate|show]" >&2
+        exit 1
+        ;;
+    esac
+    ;;
+  update|upgrade)
+    shift
+    do_update "$@"
+    ;;
+  uninstall)
+    do_uninstall
     ;;
   ""|help|-h|--help)
     usage
