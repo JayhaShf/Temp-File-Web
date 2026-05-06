@@ -37,7 +37,7 @@ DOMAIN=files.example.com INSTALL_MODE=default LANGUAGE=zh bash scripts/install.s
 
 ```bash
 cd /root/Temp-File-Web
-IP=192.0.2.10 ACCESS_HOST=192.0.2.10 HTTP_PORT=8080 INSTALL_ACME=0 INSTALL_MODE=default LANGUAGE=zh bash scripts/install.sh install
+IP=192.0.2.10 ACCESS_HOST=192.0.2.10 HTTP_PORT=8080 INSTALL_ACME=0 INSTALL_MODE=default LANGUAGE=zh bash scripts/install.sh install  # 192.0.2.10 为示例 IP，请替换为实际地址
 ```
 
 安装后检查：
@@ -245,7 +245,7 @@ tfw session show                    # 查看当前 token
 跳过证书直接用 HTTP：
 
 ```bash
-INSTALL_ACME=0 ACCESS_HOST=192.0.2.10 HTTP_PORT=8080 bash scripts/install.sh install
+INSTALL_ACME=0 ACCESS_HOST=192.0.2.10 HTTP_PORT=8080 bash scripts/install.sh install  # 替换为实际 IP
 ```
 
 ACME 失败自动回退到 HTTP，后续手动补齐证书再 upgrade 切回 HTTPS：
