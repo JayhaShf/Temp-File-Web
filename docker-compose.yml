@@ -1,0 +1,25 @@
+services:
+  tfw:
+    build: .
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      DOMAIN: "${DOMAIN:-}"
+      ACCESS_HOST: "${ACCESS_HOST:-localhost}"
+      SITE_TITLE: "${SITE_TITLE:-Temp File Web}"
+      LANGUAGE: "${LANGUAGE:-en}"
+      INSTALL_MODE: default
+      INSTALL_ACME: "${INSTALL_ACME:-0}"
+      AUTH_USER: "${AUTH_USER:-uploader}"
+      AUTH_PASSWORD: "${AUTH_PASSWORD:-}"
+      MAX_UPLOAD_SIZE: "${MAX_UPLOAD_SIZE:-2g}"
+    volumes:
+      - tfw-data:/srv/tfw/data
+      - tfw-config:/etc/tfw
+      - tfw-nginx:/etc/nginx/conf.d
+
+volumes:
+  tfw-data:
+  tfw-config:
+  tfw-nginx:
