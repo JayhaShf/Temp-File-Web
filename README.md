@@ -12,7 +12,7 @@
 | 功能总览 | 服务端、安装器、运维能力 | [查看](#features) |
 | 访问入口 | 根目录、上传页、JSON 索引、上传目录 | [查看](#routes) |
 | 安装方式 | 交互式、一键默认、全参数安装 | [查看](#install) |
-| 上传认证 | 登录、会话 Cookie、PUT 上传、轮换密码 | [查看](#upload-auth) |
+| 上传认证 | 登录、会话 Cookie、上传、删除、轮换密码 | [查看](#upload-auth) |
 | HTTPS 证书 | acme.sh 签发、HTTP 回退、手动补证书 | [查看](#https-acme) |
 | 运维命令 | `tfw info/status/logs/passwd/restart` | [查看](#tfw-cli) |
 | 升级卸载 | `upgrade`、`uninstall` 和保留数据策略 | [查看](#upgrade-uninstall) |
@@ -63,7 +63,7 @@ tfw status
 
 - 自定义公开文件列表页。
 - `/upload` 提供上传页面。
-- `/_upload_api/` 支持认证后的 `PUT` 上传。
+- `/_upload_api/` 支持认证后的 `PUT` 上传和 `DELETE` 删除。
 - `/uploads/` 公开展示上传文件。
 - `/_listing/` 提供 Nginx JSON autoindex 数据。
 - 支持 HTTP 模式，也支持有证书后切换到 HTTPS。
@@ -100,8 +100,9 @@ tfw status
 | 路径 | 作用 |
 | --- | --- |
 | `/` | 自定义文件浏览首页 |
-| `/upload` | 上传页面，先登录再上传 |
-| `/uploads/` | 上传文件公开目录 |
+| `/upload` | 上传页面，支持 `next` 参数，登录后可返回来源页面 |
+| `/uploads/` | 上传文件公开目录，登录后显示管理状态和删除操作 |
+| 项目地址 | 页面顶部导航外链，默认指向本项目 GitHub 仓库 |
 | `/_listing/` | 根目录 JSON 文件索引 |
 | `/_listing/uploads/` | 上传目录 JSON 文件索引 |
 | `/.well-known/acme-challenge/` | ACME HTTP challenge |
@@ -109,6 +110,8 @@ tfw status
 文件浏览页会读取 `/_listing/` 的 JSON 数据并渲染自定义 UI。文件本身仍然保持 Nginx 静态直链访问。
 
 上传页不会直接暴露 Basic Auth 弹窗。前端先调用 `/_session_login` 校验账号密码，服务端设置会话 Cookie，随后前端向 `/_upload_api/<filename>` 发起 `PUT` 上传。
+
+打开 `/uploads/` 时页面会检查上传会话。未登录时显示只读浏览和“登录管理”入口；点击后进入 `/upload?next=/uploads/`，登录成功会自动回到 `/uploads/` 并显示删除按钮。删除请求同样走 `/_upload_api/<filename>`，并要求上传会话有效。
 
 <a id="install"></a>
 
@@ -159,6 +162,7 @@ bash scripts/install.sh install
 | 变量 | 默认值 |
 | --- | --- |
 | `SITE_TITLE` | `Temp File Web` |
+| `PROJECT_URL` | `https://github.com/JayhaShf/Temp-File-Web` |
 | `DATA_DIR` | `/srv/tfw/data` |
 | `SITE_BASE_DIR` | `/etc/tfw/sites` |
 | `ACME_WEBROOT` | `/var/www/_acme-challenge` |
@@ -194,6 +198,18 @@ AUTO_INSTALL_DEPS=0 bash scripts/install.sh install
 5. 校验通过后设置 `tfw_upload_auth` Cookie。
 6. 页面向 `/_upload_api/<filename>` 发起 `PUT` 上传。
 7. 文件落到 `${UPLOAD_DIR}`，默认是 `/srv/tfw/data/uploads`。
+
+删除认证流程：
+
+1. 打开 `/uploads/`。
+2. 如果页面显示只读浏览，点击“登录管理”。
+3. 在 `/upload?next=/uploads/` 登录后自动回到上传目录。
+4. 文件项会显示删除按钮。
+5. 点击删除后确认操作。
+6. 页面向 `/_upload_api/<filename>` 发起 `DELETE` 请求。
+7. Nginx 复用上传认证后删除对应文件。
+
+删除功能只对上传根目录中的文件开放，不会在目录项或其他公开目录中显示删除按钮。
 
 轮换上传密码：
 
@@ -270,15 +286,20 @@ TFW_CONFIG=/path/to/tfw.conf tfw info
 | 命令 | 作用 |
 | --- | --- |
 | `tfw time` | 显示本地时间、UTC 时间和主机名 |
-| `tfw info` | 显示运行配置、目录、证书、日志和 URL |
-| `tfw urls` | 显示根页面、上传页、上传目录和 listing API |
+| `tfw info` | 显示运行配置、项目地址、目录、证书、日志和 URL |
+| `tfw urls` | 显示根页面、上传页、上传管理页、上传目录、listing API 和项目地址 |
 | `tfw cert` | 显示 acme.sh、证书和私钥路径 |
 | `tfw status` | 检查 Nginx、HTTP 状态码、目录数量和磁盘空间 |
+| `tfw health` | `tfw status` 的别名 |
+| `tfw auth [user] [password]` | 检查上传认证端点、会话状态、错误密码保护和可选真实密码校验 |
+| `tfw config` | 输出当前运行配置路径和配置内容 |
+| `tfw doctor` | 检查本地配置、权限、页面、证书、日志路径 |
 | `tfw test` | 执行 `nginx -t` |
 | `tfw ls root` | 列出数据根目录 |
 | `tfw ls uploads` | 列出上传目录 |
 | `tfw logs access 100` | 查看 access log 后 100 行 |
 | `tfw logs error 100` | 查看 error log 后 100 行 |
+| `tfw logs all 100` | 同时查看 access/error log 后 100 行 |
 | `tfw restart` | 检查并重启或重载 Nginx |
 | `tfw passwd` | 轮换上传认证密码 |
 
@@ -391,8 +412,8 @@ web/        文件浏览页和上传页模板
 - `server_tokens off`。
 - 上传认证文件使用 `umask 077` 写入，并设置为 `0640`。
 - 证书目录权限为 `0700`。
-- 上传写入只开放在 `/_upload_api/`，落盘到 `/uploads/` 对应目录。
-- 上传接口只允许 `PUT` 和 `OPTIONS`。
+- 上传和删除只开放在 `/_upload_api/`，作用范围是 `/uploads/` 对应目录。
+- 上传接口只允许 `PUT`、`DELETE` 和 `OPTIONS`。
 - 文件公开目录只允许 `GET`、`HEAD`、`OPTIONS`。
 - ACME challenge 只暴露 `/.well-known/acme-challenge/`。
 
@@ -430,6 +451,14 @@ ACME 申请失败：
 - 使用 `tfw passwd` 重新生成认证文件。
 - 检查 Nginx 运行用户是否能写入上传目录。
 - 检查 `MAX_UPLOAD_SIZE` 是否小于上传文件。
+
+删除按钮不显示或删除失败：
+
+- 先打开 `/upload` 登录，再打开 `/uploads/`。
+- 删除按钮只在 `/uploads/` 根目录的文件项上显示。
+- 执行 `bash scripts/install.sh upgrade` 确保已渲染新版 Nginx 配置和页面。
+- 使用 `tfw passwd` 重新生成认证文件后再登录测试。
+- 检查 Nginx 运行用户是否能删除上传目录中的文件。
 
 页面能打开但目录为空：
 
