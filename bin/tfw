@@ -24,7 +24,7 @@ CONF="${CONF:-/etc/nginx/conf.d/temp-file-web.conf}"
 SITE_DIR="${SITE_DIR:-/etc/tfw/sites/$SITE_ID}"
 AUTH_FILE="${AUTH_FILE:-$SITE_DIR/file-upload.htpasswd}"
 DATA_DIR="${DATA_DIR:-/srv/tfw/data}"
-UPLOAD_DIR="${UPLOAD_DIR:-$DATA_DIR/uploads}"
+UPLOAD_DIR="${UPLOAD_DIR:-$DATA_DIR}"
 BROWSER_HTML="${BROWSER_HTML:-$SITE_DIR/file-browser.html}"
 UPLOAD_HTML="${UPLOAD_HTML:-$SITE_DIR/file-upload.html}"
 ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/$SITE_ID.access.log}"
@@ -66,8 +66,6 @@ fi
 
 url_root="${url_scheme}://${url_authority}/"
 url_upload="${url_scheme}://${url_authority}/upload"
-url_upload_manage="${url_scheme}://${url_authority}/upload?next=/uploads/"
-url_uploads="${url_scheme}://${url_authority}/uploads/"
 url_listing="${url_scheme}://${url_authority}/_listing/"
 url_session_login="${url_scheme}://${url_authority}/_session_login"
 url_session_status="${url_scheme}://${url_authority}/_session_status"
@@ -132,8 +130,6 @@ msg() {
         auth_user) echo "上传用户" ;;
         root_url) echo "根地址" ;;
         upload_page) echo "上传页面" ;;
-        upload_manage) echo "上传管理" ;;
-        uploads_dir) echo "上传目录地址" ;;
         listing_api) echo "目录接口" ;;
         session_status) echo "会话状态（未登录预期 401）" ;;
         login_verify) echo "错误密码保护（预期 401）" ;;
@@ -158,7 +154,6 @@ msg() {
         upload_files) echo "上传文件数" ;;
         upload_size) echo "上传目录大小" ;;
         root_page) echo "根页面" ;;
-        uploads_page) echo "上传目录页面" ;;
         listing_json) echo "目录 JSON" ;;
         upload_expect) echo "上传页面" ;;
         upload_api_expect) echo "上传 API（未登录预期 401）" ;;
@@ -260,8 +255,6 @@ msg() {
         auth_user) echo "auth user" ;;
         root_url) echo "root" ;;
         upload_page) echo "upload page" ;;
-        upload_manage) echo "upload manage" ;;
-        uploads_dir) echo "uploads dir" ;;
         listing_api) echo "listing api" ;;
         session_status) echo "session status (expect 401 when signed out)" ;;
         login_verify) echo "invalid password protection (expect 401)" ;;
@@ -286,7 +279,6 @@ msg() {
         upload_files) echo "upload files" ;;
         upload_size) echo "upload size" ;;
         root_page) echo "root page" ;;
-        uploads_page) echo "uploads page" ;;
         listing_json) echo "listing json" ;;
         upload_expect) echo "upload page" ;;
         upload_api_expect) echo "upload api (expect 401 when signed out)" ;;
@@ -482,8 +474,6 @@ show_time() {
 show_urls() {
   echo "$(printf '%-15s: %s' "$(msg root_url)" "$url_root")"
   echo "$(printf '%-15s: %s' "$(msg upload_page)" "$url_upload")"
-  echo "$(printf '%-15s: %s' "$(msg upload_manage)" "$url_upload_manage")"
-  echo "$(printf '%-15s: %s' "$(msg uploads_dir)" "$url_uploads")"
   echo "$(printf '%-15s: %s' "$(msg listing_api)" "$url_listing")"
   echo "$(printf '%-15s: %s' "$(msg project_url)" "$PROJECT_URL")"
 }
@@ -537,7 +527,7 @@ test_nginx() {
 
 show_status() {
   local listing_payload listing_count auth_user_name nginx_test_text nginx_process_text
-  local root_code uploads_code listing_code upload_code session_code upload_api_code login_verify_code summary_text
+  local root_code listing_code upload_code session_code upload_api_code login_verify_code summary_text
   if ! command -v nginx >/dev/null 2>&1; then
     echo "$(msg missing_command nginx)" >&2
     exit 1
@@ -582,7 +572,6 @@ show_status() {
   echo "$(printf '%-15s: %s' "$(msg upload_files)" "$(count_entries "$UPLOAD_DIR" files)")"
   echo "$(printf '%-15s: %s' "$(msg upload_size)" "$(dir_size "$UPLOAD_DIR")")"
   root_code="$(http_code "$url_root")"
-  uploads_code="$(http_code "$url_uploads")"
   listing_code="$(http_code "$url_listing")"
   upload_code="$(http_code "$url_upload")"
   session_code="$(http_code "$url_session_status")"
@@ -593,9 +582,9 @@ show_status() {
     login_verify_code="$(msg none)"
   fi
 
-  if [[ "$root_code" == "200" && "$uploads_code" == "200" && "$listing_code" == "200" && "$upload_code" == "200" ]]; then
+  if [[ "$root_code" == "200" && "$listing_code" == "200" && "$upload_code" == "200" ]]; then
     summary_text="$(msg summary_ok)"
-  elif [[ "$root_code" == "200" || "$uploads_code" == "200" || "$listing_code" == "200" || "$upload_code" == "200" ]]; then
+  elif [[ "$root_code" == "200" || "$listing_code" == "200" || "$upload_code" == "200" ]]; then
     summary_text="$(msg summary_partial)"
   else
     summary_text="$(msg summary_fail)"
@@ -603,7 +592,6 @@ show_status() {
 
   echo "$(printf '%-15s: %s' "$(msg summary)" "$summary_text")"
   echo "$(printf '%-15s: %s' "$(msg root_page)" "$root_code")"
-  echo "$(printf '%-15s: %s' "$(msg uploads_page)" "$uploads_code")"
   echo "$(printf '%-15s: %s' "$(msg listing_json)" "$listing_code")"
   echo "$(printf '%-15s: %s' "$(msg upload_expect)" "$upload_code")"
   echo "$(printf '%-15s: %s' "$(msg session_status)" "$session_code")"

@@ -282,7 +282,6 @@
       <p id="subtitle">${BROWSER_LOADING}</p>
       <div class="nav">
         <a class="nav-link" href="/">${NAV_ROOT}</a>
-        <a class="nav-link" href="/uploads/">${NAV_UPLOADS}</a>
         <a class="nav-link" href="/upload">${NAV_UPLOAD}</a>
         <a class="nav-link" href="${PROJECT_URL}" target="_blank" rel="noopener noreferrer">${NAV_PROJECT}</a>
         <a class="nav-link" id="parent-link" href="/" hidden>${NAV_PARENT}</a>
@@ -305,7 +304,7 @@
           <p id="manager-text"></p>
         </div>
         <div class="manager-actions">
-          <a class="action-link primary" id="manager-login" href="/upload?next=/uploads/">${MANAGE_LOGIN}</a>
+          <a class="action-link primary" id="manager-login" href="/upload?next=/">${MANAGE_LOGIN}</a>
           <button class="action-link" id="manager-logout" type="button" hidden>${MANAGE_LOGOUT}</button>
         </div>
       </div>
@@ -369,7 +368,7 @@
 
     const currentPath = location.pathname.endsWith("/") ? location.pathname : `${location.pathname}/`;
     const dataUrl = `/_listing${currentPath}`;
-    const isUploadRoot = currentPath === "/uploads/";
+    const isUploadRoot = currentPath === "/";
     let canDeleteItems = false;
     let items = [];
 

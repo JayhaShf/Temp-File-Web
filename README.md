@@ -59,7 +59,7 @@ tfw status
 - 自定义文件浏览首页，暗色主题，响应式布局。
 - `/upload` 页面内登录上传，支持多文件、进度条。
 - `/_upload_api/` 支持认证后的 `PUT` 上传和 `DELETE` 删除。
-- `/uploads/` 公开展示子目录文件，登录后可管理删除。
+- 上传文件默认落到根目录，登录后可在首页管理删除。
 - `/_listing/` 提供 Nginx JSON autoindex 数据供前端消费。
 - 支持 HTTP / HTTPS 双模式，HTTPS 模式下 HTTP 自动跳转。
 - 内置 ACME challenge 路由。
@@ -88,7 +88,7 @@ tfw status
 | `tfw config` | 输出当前运行配置内容 |
 | `tfw doctor` | 检查所有关键路径和权限 |
 | `tfw test` | 执行 `nginx -t` |
-| `tfw ls [root\|uploads\|/path]` | 列出目录内容 |
+| `tfw ls [root\|/path]` | 列出目录内容 |
 | `tfw logs [access\|error\|all] [行数]` | 查看日志 |
 | `tfw restart` | 检查并重载 Nginx |
 | `tfw passwd [user] [pass]` | 轮换上传认证密码 |
@@ -102,18 +102,16 @@ tfw status
 
 | 路径 | 作用 |
 | --- | --- |
-| `/` | 自定义文件浏览首页 |
+| `/` | 自定义文件浏览首页，登录后显示管理面板和删除操作 |
 | `/upload` | 上传页面，支持 `next` 参数，登录后可跳回来源页面 |
-| `/uploads/` | 上传文件公开目录，登录后显示管理面板和删除操作 |
 | `/_listing/` | 根目录 JSON 文件索引 |
-| `/_listing/uploads/` | 上传子目录 JSON 文件索引 |
 | `/.well-known/acme-challenge/` | ACME HTTP challenge |
 
 文件浏览页通过 `/_listing/` JSON 渲染自定义 UI，文件本体保持 Nginx 静态直连。
 
 上传认证采用页面内表单 + 会话 Cookie 机制：前端调用 `/_session_login` 校验账号密码，服务端设置 `tfw_upload_auth` Cookie（Max-Age 24 小时，HttpOnly，SameSite Strict），随后前端向 `/_upload_api/<filename>` 发起 `PUT` 上传。
 
-打开 `/uploads/` 时页面检查会话状态：未登录时显示只读浏览和登录入口；登录后显示删除按钮。删除通过 `/_upload_api/<filename>` 的 `DELETE` 请求完成。
+打开首页 `/` 时页面检查会话状态：已登录则显示管理面板和删除按钮，未登录则显示只读浏览和登录入口。删除通过 `/_upload_api/<filename>` 的 `DELETE` 请求完成。
 
 <a id="install"></a>
 
@@ -207,8 +205,8 @@ AUTO_INSTALL_DEPS=0 bash scripts/install.sh install
 
 **删除流程：**
 
-1. 打开 `/uploads/`，点击"登录管理"进入 `/upload?next=/uploads/`。
-2. 登录后自动回到 `/uploads/`，文件项显示删除按钮。
+1. 打开首页 `/`，点击"登录管理"进入 `/upload?next=/`。
+2. 登录后自动回到首页，文件项显示删除按钮。
 3. 点击删除并确认，前端向 `/_upload_api/<filename>` 发起 `DELETE`。
 
 上传和删除只对 `${UPLOAD_DIR}` 根目录中的文件生效，不会在子目录上显示操作按钮。
@@ -424,7 +422,7 @@ web/            文件浏览页、上传页、共享样式模板
 
 **删除按钮不显示或删除失败：**
 
-- 先打开 `/upload` 登录，再访问 `/uploads/`。
+- 先打开 `/upload` 登录，再访问首页 `/`。
 - 删除按钮只在上传根目录的文件项上显示。
 - 执行 `bash scripts/install.sh upgrade` 确保配置为最新版本。
 - `tfw passwd` 重新生成认证文件后重试。

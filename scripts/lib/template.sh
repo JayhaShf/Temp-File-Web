@@ -104,7 +104,6 @@ fill_page_i18n() {
       -e "s|\${BROWSER_MAIN_TITLE}|文件列表|g" \
       -e "s|\${BROWSER_LOADING}|正在加载目录数据…|g" \
       -e "s|\${NAV_ROOT}|根目录|g" \
-      -e "s|\${NAV_UPLOADS}|上传目录|g" \
       -e "s|\${NAV_UPLOAD}|上传文件|g" \
       -e "s|\${NAV_PARENT}|上一级|g" \
       -e "s|\${NAV_PROJECT}|项目地址|g" \
@@ -119,7 +118,7 @@ fill_page_i18n() {
       -e "s|\${UPLOAD_SUBTITLE_SUFFIX}|，上传完成后可在根目录直接访问。|g" \
       -e "s|\${UPLOAD_PICK}|选择文件|g" \
       -e "s|\${UPLOAD_START}|开始上传|g" \
-      -e "s|\${UPLOAD_OPEN_DIR}|打开上传目录|g" \
+      -e "s|\${UPLOAD_OPEN_DIR}|打开根目录|g" \
       -e "s|\${UPLOAD_HINT}|支持多选；同名文件会被覆盖。当前上限由服务端配置决定。|g" \
       -e "s|\${UPLOAD_DONE_PREFIX}|上传完成后，文件公开地址是 |g" \
       -e "s|\${UPLOAD_DONE_SUFFIX}|。|g" \
@@ -155,7 +154,7 @@ fill_page_i18n() {
       -e "s|\${JS_LABEL_DELETE_FAILED}|$(js_string "删除失败")|g" \
       -e "s|\${JS_LABEL_DELETE_CONFIRM}|$(js_string "确定删除 {name} 吗？此操作不可撤销。")|g" \
       -e "s|\${JS_MANAGE_READY_TITLE}|$(js_string "管理模式已开启")|g" \
-      -e "s|\${JS_MANAGE_READY_TEXT}|$(js_string "当前上传会话有效，可以删除上传目录中的文件。")|g" \
+      -e "s|\${JS_MANAGE_READY_TEXT}|$(js_string "当前上传会话有效，可以删除根目录中的文件。")|g" \
       -e "s|\${JS_MANAGE_LOCKED_TITLE}|$(js_string "当前为只读浏览")|g" \
       -e "s|\${JS_MANAGE_LOCKED_TEXT}|$(js_string "登录后会回到此目录，并显示文件删除操作。")|g" \
       -e "s|\${JS_SITE_TITLE}|$(js_string "$SITE_TITLE")|g" \
@@ -184,7 +183,6 @@ fill_page_i18n() {
       -e "s|\${BROWSER_MAIN_TITLE}|File index|g" \
       -e "s|\${BROWSER_LOADING}|Loading directory data...|g" \
       -e "s|\${NAV_ROOT}|Root|g" \
-      -e "s|\${NAV_UPLOADS}|Uploads|g" \
       -e "s|\${NAV_UPLOAD}|Upload|g" \
       -e "s|\${NAV_PARENT}|Parent|g" \
       -e "s|\${NAV_PROJECT}|Project|g" \
@@ -199,7 +197,7 @@ fill_page_i18n() {
       -e "s|\${UPLOAD_SUBTITLE_SUFFIX}| and are publicly accessible from the root directory after upload.|g" \
       -e "s|\${UPLOAD_PICK}|Choose files|g" \
       -e "s|\${UPLOAD_START}|Start upload|g" \
-      -e "s|\${UPLOAD_OPEN_DIR}|Open uploads|g" \
+      -e "s|\${UPLOAD_OPEN_DIR}|Open root|g" \
       -e "s|\${UPLOAD_HINT}|Multiple files are supported. Existing files with the same name will be overwritten. The limit is controlled by the server config.|g" \
       -e "s|\${UPLOAD_DONE_PREFIX}|After upload, the public file URL is |g" \
       -e "s|\${UPLOAD_DONE_SUFFIX}|.|g" \
@@ -235,7 +233,7 @@ fill_page_i18n() {
       -e "s|\${JS_LABEL_DELETE_FAILED}|$(js_string "Delete failed")|g" \
       -e "s|\${JS_LABEL_DELETE_CONFIRM}|$(js_string "Delete {name}? This cannot be undone.")|g" \
       -e "s|\${JS_MANAGE_READY_TITLE}|$(js_string "Manage mode is active")|g" \
-      -e "s|\${JS_MANAGE_READY_TEXT}|$(js_string "Your upload session is valid. You can delete files in the uploads directory.")|g" \
+      -e "s|\${JS_MANAGE_READY_TEXT}|$(js_string "Your upload session is valid. You can delete files in the root directory.")|g" \
       -e "s|\${JS_MANAGE_LOCKED_TITLE}|$(js_string "Read-only browsing")|g" \
       -e "s|\${JS_MANAGE_LOCKED_TEXT}|$(js_string "Sign in to return here with delete actions enabled.")|g" \
       -e "s|\${JS_SITE_TITLE}|$(js_string "$SITE_TITLE")|g" \

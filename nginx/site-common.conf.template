@@ -77,10 +77,6 @@
         return 204;
     }
 
-    location = /uploads {
-        return 301 /uploads/;
-    }
-
     location /_upload_api/ {
         auth_request /_auth_upload_gate;
         alias ${UPLOAD_DIR}/;
@@ -115,17 +111,6 @@
         autoindex_localtime on;
         add_header Cache-Control "no-store" always;
 
-        limit_except GET HEAD OPTIONS {
-            deny all;
-        }
-
-        if ($request_method = OPTIONS) {
-            add_header Allow "GET, HEAD, OPTIONS" always;
-            return 204;
-        }
-    }
-
-    location /uploads/ {
         limit_except GET HEAD OPTIONS {
             deny all;
         }

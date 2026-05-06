@@ -49,11 +49,7 @@ code=$(curl $curl_flags $resolve_flag -o /dev/null -w '%{http_code}' "$BASE/" 2>
 code=$(curl $curl_flags $resolve_flag -o /dev/null -w '%{http_code}' "$BASE/upload" 2>/dev/null || echo "ERR")
 [[ "$code" == "200" ]] && pass "Upload page /upload (got $code)" || fail "Upload page /upload (got $code)"
 
-# 3. Uploads directory
-code=$(curl $curl_flags $resolve_flag -o /dev/null -w '%{http_code}' "$BASE/uploads/" 2>/dev/null || echo "ERR")
-[[ "$code" == "200" || "$code" == "301" ]] && pass "Uploads dir /uploads/ (got $code)" || fail "Uploads dir /uploads/ (got $code)"
-
-# 4. Listing API
+# 3. Listing API
 code=$(curl $curl_flags $resolve_flag -o /dev/null -w '%{http_code}' "$BASE/_listing/" 2>/dev/null || echo "ERR")
 [[ "$code" == "200" ]] && pass "Listing API /_listing/ (got $code)" || fail "Listing API /_listing/ (got $code)"
 
@@ -89,7 +85,7 @@ else
 fi
 
 # 10. Data directories exist
-for dir in "${DATA_DIR:-/srv/tfw/data}" "${UPLOAD_DIR:-/srv/tfw/data/uploads}"; do
+for dir in "${DATA_DIR:-/srv/tfw/data}"; do
   if [[ -d "$dir" ]]; then
     pass "Directory exists: $dir"
   else

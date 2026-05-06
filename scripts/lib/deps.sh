@@ -128,7 +128,7 @@ restore_runtime_derived_values() {
   HTTPS_PORT="${HTTPS_PORT:-443}"
   CONF_FILE="${CONF_FILE:-$CONF_DIR/temp-file-web.conf}"
   ACME_CONF_FILE="${ACME_CONF_FILE:-$CONF_DIR/temp-file-web-acme.conf}"
-  UPLOAD_DIR="${UPLOAD_DIR:-$DATA_DIR/uploads}"
+  UPLOAD_DIR="${UPLOAD_DIR:-$DATA_DIR}"
   SITE_DIR="${SITE_DIR:-$SITE_BASE_DIR/$SITE_ID}"
   ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/$SITE_ID.access.log}"
   ERROR_LOG="${ERROR_LOG:-/var/log/nginx/$SITE_ID.error.log}"
