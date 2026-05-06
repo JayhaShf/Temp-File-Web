@@ -1,25 +1,26 @@
 # Temp-File-Web
 
-`Temp-File-Web` 是一个可复用的 Nginx 临时文件站点部署模板。它可以在新机器上快速部署公开文件浏览、认证上传、可选 HTTPS 证书、运行配置和日常运维命令。
+`Temp-File-Web` 是一个可复用的 Nginx 临时文件站点部署模板。一条命令即可在新机器上部署公开文件浏览、认证上传、可选 HTTPS 证书和日常运维工具。
 
-文档以中文为主。下方所有功能入口都可以点击，页面会滚动到对应章节。
+文档以中文为主。
 
 ## 功能导航
 
-| 功能 | 说明 | 跳转 |
-| --- | --- | --- |
-| 快速开始 | 最短路径完成安装 | [查看](#quick-start) |
-| 功能总览 | 服务端、安装器、运维能力 | [查看](#features) |
-| 访问入口 | 根目录、上传页、JSON 索引、上传目录 | [查看](#routes) |
-| 安装方式 | 交互式、一键默认、全参数安装 | [查看](#install) |
-| 上传认证 | 登录、会话 Cookie、上传、删除、轮换密码 | [查看](#upload-auth) |
-| HTTPS 证书 | acme.sh 签发、HTTP 回退、手动补证书 | [查看](#https-acme) |
-| 运维命令 | `tfw info/status/logs/passwd/restart` | [查看](#tfw-cli) |
-| 升级卸载 | `upgrade`、`uninstall` 和保留数据策略 | [查看](#upgrade-uninstall) |
-| 目录结构 | 仓库结构和安装后路径 | [查看](#paths) |
-| 安全默认值 | TLS、响应头、权限、上传限制 | [查看](#security) |
-| 迁移部署 | 复制到新设备部署 | [查看](#migration) |
-| 常见问题 | 证书、端口、权限、配置丢失 | [查看](#troubleshooting) |
+| 功能 | 说明 |
+| --- | --- |
+| 快速开始 | 最短路径完成安装 |
+| 功能总览 | 服务端、安装器、运维能力 |
+| 访问入口 | 根目录、上传页、JSON 索引 |
+| 安装方式 | 交互式、一键默认、全参数安装 |
+| 上传认证 | 登录、会话 Cookie、上传、删除、轮换密码 |
+| HTTPS 证书 | acme.sh 签发、HTTP 回退、手动补证书 |
+| 运维命令 | 全部 `tfw` 子命令 |
+| 升级 / 更新 / 卸载 | `tfw update`、`tfw uninstall`、`install.sh upgrade` |
+| Docker 部署 | Dockerfile + docker-compose |
+| 目录结构 | 仓库结构和安装后路径 |
+| 安全默认值 | TLS、响应头、权限、上传限制 |
+| 迁移部署 | 复制到新设备部署 |
+| 常见问题 | 证书、端口、权限、配置丢失 |
 
 <a id="quick-start"></a>
 
@@ -36,16 +37,10 @@ DOMAIN=files.example.com INSTALL_MODE=default LANGUAGE=zh bash scripts/install.s
 
 ```bash
 cd /root/Temp-File-Web
-IP=192.0.2.10 \
-ACCESS_HOST=192.0.2.10 \
-HTTP_PORT=8080 \
-INSTALL_ACME=0 \
-INSTALL_MODE=default \
-LANGUAGE=zh \
-bash scripts/install.sh install
+IP=192.0.2.10 ACCESS_HOST=192.0.2.10 HTTP_PORT=8080 INSTALL_ACME=0 INSTALL_MODE=default LANGUAGE=zh bash scripts/install.sh install
 ```
 
-安装后先检查：
+安装后检查：
 
 ```bash
 tfw info
@@ -53,65 +48,72 @@ tfw urls
 tfw status
 ```
 
-如果安装输出里显示了随机上传密码，请及时保存到你的密码管理工具。之后可以用 `tfw passwd` 轮换。
+安装输出中会显示随机上传密码，请及时保存。之后可用 `tfw passwd` 轮换。
 
 <a id="features"></a>
 
 ## 功能总览
 
-服务端功能：
+**服务端功能：**
 
-- 自定义公开文件列表页。
-- `/upload` 提供上传页面。
+- 自定义文件浏览首页，暗色主题，响应式布局。
+- `/upload` 页面内登录上传，支持多文件、进度条。
 - `/_upload_api/` 支持认证后的 `PUT` 上传和 `DELETE` 删除。
-- `/uploads/` 公开展示上传文件。
-- `/_listing/` 提供 Nginx JSON autoindex 数据。
-- 支持 HTTP 模式，也支持有证书后切换到 HTTPS。
-- HTTPS 模式下 HTTP 自动跳转到 HTTPS。
+- `/uploads/` 公开展示子目录文件，登录后可管理删除。
+- `/_listing/` 提供 Nginx JSON autoindex 数据供前端消费。
+- 支持 HTTP / HTTPS 双模式，HTTPS 模式下 HTTP 自动跳转。
 - 内置 ACME challenge 路由。
-- 每个站点独立 access/error 日志。
+- 每个站点独立 access / error 日志。
 
-安装器功能：
+**安装器功能：**
 
-- 首次安装可选择中文或英文。
+- 安装前预检：端口冲突、磁盘空间、Nginx 用户存在性、DNS 解析、模板完整性。
+- 首次安装可选择中文或英文，交互式或一键默认。
 - 支持 `install`、`upgrade`、`uninstall`。
-- 支持交互式安装和一键默认安装。
-- 自动创建站点目录、数据目录、上传目录、认证文件和运行配置。
-- 自动渲染 Nginx 配置和前端页面模板。
-- 可自动安装依赖和 `acme.sh`。
-- 证书申请失败时自动回退到可用 HTTP 站点。
+- 自动创建目录结构、渲染 Nginx 配置和前端页面。
+- 自动安装系统依赖和 `acme.sh`。
+- ACME 证书申请失败自动回退到 HTTP 站点。
 
-运维功能：
+**运维功能（`tfw` 命令）：**
 
-- `tfw info` 查看安装配置和本地文件状态。
-- `tfw urls` 查看访问地址。
-- `tfw cert` 查看证书路径和 acme.sh 状态。
-- `tfw status` 执行 Nginx、HTTP、目录和空间检查。
-- `tfw logs` 查看 access/error 日志。
-- `tfw passwd` 轮换上传用户名和密码。
-- `tfw restart` 检查并重启或重载 Nginx。
+| 命令 | 作用 |
+| --- | --- |
+| `tfw time` | 显示本地时间、UTC 时间和主机名 |
+| `tfw info` | 显示运行配置、路径、文件状态和 URL |
+| `tfw urls` | 显示所有公开访问地址 |
+| `tfw cert` | 显示 acme.sh 和证书路径 |
+| `tfw status` | Nginx 进程、HTTP 状态码、目录数量、磁盘空间 |
+| `tfw health` | `tfw status` 的别名 |
+| `tfw auth [user] [pass]` | 检查认证端点与密码校验 |
+| `tfw config` | 输出当前运行配置内容 |
+| `tfw doctor` | 检查所有关键路径和权限 |
+| `tfw test` | 执行 `nginx -t` |
+| `tfw ls [root\|uploads\|/path]` | 列出目录内容 |
+| `tfw logs [access\|error\|all] [行数]` | 查看日志 |
+| `tfw restart` | 检查并重载 Nginx |
+| `tfw passwd [user] [pass]` | 轮换上传认证密码 |
+| `tfw session [show\|rotate]` | 查看或轮换会话 token |
+| `tfw update [--check\|--pull]` | 升级 / 检查更新 / 拉取最新代码升级 |
+| `tfw uninstall` | 交互式卸载站点 |
 
 <a id="routes"></a>
 
 ## 访问入口
 
-安装完成后常用入口如下：
-
 | 路径 | 作用 |
 | --- | --- |
 | `/` | 自定义文件浏览首页 |
-| `/upload` | 上传页面，支持 `next` 参数，登录后可返回来源页面 |
-| `/uploads/` | 上传文件公开目录，登录后显示管理状态和删除操作 |
-| 项目地址 | 页面顶部导航外链，默认指向本项目 GitHub 仓库 |
+| `/upload` | 上传页面，支持 `next` 参数，登录后可跳回来源页面 |
+| `/uploads/` | 上传文件公开目录，登录后显示管理面板和删除操作 |
 | `/_listing/` | 根目录 JSON 文件索引 |
-| `/_listing/uploads/` | 上传目录 JSON 文件索引 |
+| `/_listing/uploads/` | 上传子目录 JSON 文件索引 |
 | `/.well-known/acme-challenge/` | ACME HTTP challenge |
 
-文件浏览页会读取 `/_listing/` 的 JSON 数据并渲染自定义 UI。文件本身仍然保持 Nginx 静态直链访问。
+文件浏览页通过 `/_listing/` JSON 渲染自定义 UI，文件本体保持 Nginx 静态直连。
 
-上传页不会直接暴露 Basic Auth 弹窗。前端先调用 `/_session_login` 校验账号密码，服务端设置会话 Cookie，随后前端向 `/_upload_api/<filename>` 发起 `PUT` 上传。
+上传认证采用页面内表单 + 会话 Cookie 机制：前端调用 `/_session_login` 校验账号密码，服务端设置 `tfw_upload_auth` Cookie（Max-Age 24 小时，HttpOnly，SameSite Strict），随后前端向 `/_upload_api/<filename>` 发起 `PUT` 上传。
 
-打开 `/uploads/` 时页面会检查上传会话。未登录时显示只读浏览和“登录管理”入口；点击后进入 `/upload?next=/uploads/`，登录成功会自动回到 `/uploads/` 并显示删除按钮。删除请求同样走 `/_upload_api/<filename>`，并要求上传会话有效。
+打开 `/uploads/` 时页面检查会话状态：未登录时显示只读浏览和登录入口；登录后显示删除按钮。删除通过 `/_upload_api/<filename>` 的 `DELETE` 请求完成。
 
 <a id="install"></a>
 
@@ -123,22 +125,22 @@ tfw status
 bash scripts/install.sh [install|upgrade|uninstall]
 ```
 
-交互式安装：
+**交互式安装：**
 
 ```bash
 cd /root/Temp-File-Web
 bash scripts/install.sh install
 ```
 
-首次运行会选择语言和安装模式。交互式安装会询问域名、访问主机、HTTP/HTTPS 端口、站点标题、Nginx 用户、数据目录、站点资源目录、是否启用 ACME、上传账号、上传密码和上传大小上限。
+选择语言和安装模式后，依次询问域名、访问主机、端口、站点标题、Nginx 用户、数据目录、ACME 开关、上传账号密码和上传大小上限。
 
-一键默认安装：
+**一键默认安装：**
 
 ```bash
 DOMAIN=files.example.com INSTALL_MODE=default LANGUAGE=zh bash scripts/install.sh install
 ```
 
-全参数非交互安装：
+**全参数非交互安装：**
 
 ```bash
 DOMAIN=files.example.com \
@@ -148,118 +150,105 @@ LANGUAGE=zh \
 INSTALL_MODE=default \
 TFW_USER=www-data \
 DATA_DIR=/srv/team-files/data \
-SITE_BASE_DIR=/etc/tfw/sites \
 ACME_WEBROOT=/var/www/_acme-challenge \
 ACME_EMAIL=admin@example.com \
 AUTH_USER=uploader \
 AUTH_PASSWORD='strong-password' \
 MAX_UPLOAD_SIZE=4g \
+UPLOAD_DIR=/srv/team-files/data \
 bash scripts/install.sh install
 ```
 
-默认值：
+**安装预检：**
+
+安装前自动检查端口冲突、磁盘空间、Nginx 用户、DNS 解析和模板完整性。发现问题会中止安装。可通过 `SKIP_PREFLIGHT=1` 跳过。
+
+**默认值：**
 
 | 变量 | 默认值 |
 | --- | --- |
 | `SITE_TITLE` | `Temp File Web` |
 | `PROJECT_URL` | `https://github.com/JayhaShf/Temp-File-Web` |
 | `DATA_DIR` | `/srv/tfw/data` |
+| `UPLOAD_DIR` | 同 `DATA_DIR`（上传到根目录） |
 | `SITE_BASE_DIR` | `/etc/tfw/sites` |
 | `ACME_WEBROOT` | `/var/www/_acme-challenge` |
 | `AUTH_USER` | `uploader` |
+| `AUTH_SESSION_MAX_AGE` | `86400`（24 小时） |
 | `MAX_UPLOAD_SIZE` | `2g` |
-| 有域名时 `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` |
-| 无域名时 `HTTP_PORT` / `HTTPS_PORT` | `8080` / `8443` |
+| 有域名 `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` |
+| 无域名 `HTTP_PORT` / `HTTPS_PORT` | `8080` / `8443` |
 
-依赖安装：
+**依赖安装：**
 
 ```bash
 AUTO_INSTALL_DEPS=0 bash scripts/install.sh install
 ```
 
-默认会尝试通过 `apt-get`、`dnf` 或 `yum` 安装缺失依赖。关闭自动依赖安装后，需要你先手动安装 `nginx`、`curl`、`openssl`、`sed`、`awk`、`grep`、`find` 等工具。
+默认通过 `apt-get`、`dnf` 或 `yum` 自动安装 `nginx`、`curl`、`openssl`、`gettext-base` 等依赖。关闭后需自行安装。
 
 <a id="upload-auth"></a>
 
 ## 上传认证
 
-安装器会生成 Basic Auth 文件：
+认证文件位置：
 
 ```text
 /etc/tfw/sites/<site_id>/file-upload.htpasswd
 ```
 
-上传认证流程：
+**上传流程：**
 
-1. 浏览器打开 `/upload`。
-2. 输入上传用户名和密码。
-3. 页面请求 `/_session_login`。
-4. Nginx 使用 `auth_basic_user_file` 校验密码。
-5. 校验通过后设置 `tfw_upload_auth` Cookie。
-6. 页面向 `/_upload_api/<filename>` 发起 `PUT` 上传。
-7. 文件落到 `${UPLOAD_DIR}`，默认是 `/srv/tfw/data/uploads`。
+1. 打开 `/upload`，输入上传用户名和密码。
+2. 前端调用 `/_session_login`，通过 `Authorization: Basic` 头发送凭证。
+3. Nginx `auth_request` 内部校验 `htpasswd` 文件。
+4. 校验通过后设置 `tfw_upload_auth` Cookie，有效期 24 小时。
+5. 页面向 `/_upload_api/<filename>` 发起 `PUT` 上传，文件落到 `${UPLOAD_DIR}`。
 
-删除认证流程：
+**删除流程：**
 
-1. 打开 `/uploads/`。
-2. 如果页面显示只读浏览，点击“登录管理”。
-3. 在 `/upload?next=/uploads/` 登录后自动回到上传目录。
-4. 文件项会显示删除按钮。
-5. 点击删除后确认操作。
-6. 页面向 `/_upload_api/<filename>` 发起 `DELETE` 请求。
-7. Nginx 复用上传认证后删除对应文件。
+1. 打开 `/uploads/`，点击"登录管理"进入 `/upload?next=/uploads/`。
+2. 登录后自动回到 `/uploads/`，文件项显示删除按钮。
+3. 点击删除并确认，前端向 `/_upload_api/<filename>` 发起 `DELETE`。
 
-删除功能只对上传根目录中的文件开放，不会在目录项或其他公开目录中显示删除按钮。
+上传和删除只对 `${UPLOAD_DIR}` 根目录中的文件生效，不会在子目录上显示操作按钮。
 
-轮换上传密码：
+**轮换密码：**
 
 ```bash
-tfw passwd
+tfw passwd                          # 交互式随机生成
+tfw passwd uploader 'new-pass'      # 指定用户和密码
 ```
 
-指定用户和密码：
+**轮换会话 token：**
 
 ```bash
-tfw passwd uploader 'new-strong-password'
+tfw session rotate                  # 重新生成 token，所有已登录立即失效
+tfw session show                    # 查看当前 token
 ```
-
-如果不传密码，`tfw passwd` 会生成随机密码。命令会备份旧认证文件，写入新哈希，并做本地格式校验。
 
 <a id="https-acme"></a>
 
 ## HTTPS 证书
 
-启用 ACME 的限制：
+启用条件：`DOMAIN` 已填写、`HTTP_PORT` 为 `80`、域名解析到当前机器、80 端口公网可达。
 
-- `DOMAIN` 必须填写。
-- `HTTP_PORT` 必须是 `80`。
-- 域名必须解析到当前机器。
-- 80 端口必须能被公网访问。
+流程：安装 acme.sh → 写入 ACME challenge 配置 → 签发证书 → 安装到站点目录 → 写入 HTTPS 配置 → 删除 ACME 临时配置。
 
-证书流程：
-
-1. 安装 `acme.sh`，如果本机还没有。
-2. 写入 ACME challenge 临时 Nginx 配置。
-3. 重载 Nginx，让 `/.well-known/acme-challenge/` 可访问。
-4. 执行 `acme.sh --issue -d <domain> -w <webroot>`。
-5. 把证书安装到站点目录。
-6. 渲染正式 HTTPS 配置。
-7. 删除 ACME 临时配置并重载 Nginx。
-
-证书落地位置：
+证书落地：
 
 ```text
 /etc/tfw/sites/<site_id>/certs/fullchain.cer
 /etc/tfw/sites/<site_id>/certs/<site_id>.key
 ```
 
-跳过证书直接使用 HTTP：
+跳过证书直接用 HTTP：
 
 ```bash
 INSTALL_ACME=0 ACCESS_HOST=192.0.2.10 HTTP_PORT=8080 bash scripts/install.sh install
 ```
 
-如果 ACME 失败，安装器不会让整个站点不可用，而是回退到 HTTP 配置。之后手动补齐证书文件，再执行升级即可切回 HTTPS：
+ACME 失败自动回退到 HTTP，后续手动补齐证书再 upgrade 切回 HTTPS：
 
 ```bash
 bash scripts/install.sh upgrade
@@ -269,87 +258,75 @@ bash scripts/install.sh upgrade
 
 ## 运维命令
 
-`tfw` 默认读取：
-
-```text
-/etc/tfw/tfw.conf
-```
-
-临时指定配置：
+`tfw` 默认读取 `/etc/tfw/tfw.conf`。可临时指定：
 
 ```bash
 TFW_CONFIG=/path/to/tfw.conf tfw info
 ```
 
-命令列表：
-
-| 命令 | 作用 |
-| --- | --- |
-| `tfw time` | 显示本地时间、UTC 时间和主机名 |
-| `tfw info` | 显示运行配置、项目地址、目录、证书、日志和 URL |
-| `tfw urls` | 显示根页面、上传页、上传管理页、上传目录、listing API 和项目地址 |
-| `tfw cert` | 显示 acme.sh、证书和私钥路径 |
-| `tfw status` | 检查 Nginx、HTTP 状态码、目录数量和磁盘空间 |
-| `tfw health` | `tfw status` 的别名 |
-| `tfw auth [user] [password]` | 检查上传认证端点、会话状态、错误密码保护和可选真实密码校验 |
-| `tfw config` | 输出当前运行配置路径和配置内容 |
-| `tfw doctor` | 检查本地配置、权限、页面、证书、日志路径 |
-| `tfw test` | 执行 `nginx -t` |
-| `tfw ls root` | 列出数据根目录 |
-| `tfw ls uploads` | 列出上传目录 |
-| `tfw logs access 100` | 查看 access log 后 100 行 |
-| `tfw logs error 100` | 查看 error log 后 100 行 |
-| `tfw logs all 100` | 同时查看 access/error log 后 100 行 |
-| `tfw restart` | 检查并重启或重载 Nginx |
-| `tfw passwd` | 轮换上传认证密码 |
-
-安装后建议检查：
+安装后建议执行：
 
 ```bash
-tfw info
-tfw urls
-tfw cert
-tfw status
+tfw info && tfw urls && tfw cert && tfw status
 ```
 
 <a id="upgrade-uninstall"></a>
 
-## 升级卸载
+## 升级 / 更新 / 卸载
 
-升级已安装站点：
+**从项目目录升级：**
 
 ```bash
 bash scripts/install.sh upgrade
 ```
 
-升级会读取现有 `/etc/tfw/tfw.conf`，重新渲染前端页面、Nginx 配置和 `tfw` 命令。如果已有证书，会写入 HTTPS 配置；如果没有证书，会保持 HTTP 或 ACME challenge 配置。
+升级读取现有运行配置，用新版模板重新渲染页面、Nginx 配置和 `tfw` 命令。已有证书则写入 HTTPS，否则保持 HTTP。
 
-卸载站点：
+**tfw 自更新：**
 
 ```bash
-bash scripts/install.sh uninstall
+tfw update                  # 用当前源码执行升级
+tfw update --check          # 检查远程更新
+tfw update --pull           # git pull 最新代码后升级
 ```
 
-默认卸载会删除：
+`tfw update --pull` 在检测到本地修改时会给出警告并要求确认，避免覆盖未提交的改动。
 
-- `/usr/local/bin/tfw`
-- Nginx 站点配置
-- `/etc/tfw/tfw.conf`
-- 安装生成的页面文件
-- 上传认证文件
+**交互式卸载：**
 
-默认会保留：
+```bash
+tfw uninstall
+```
 
-- 数据目录
-- 证书目录
-
-明确删除数据和证书：
+根据提示选择：是否继续 → 是否保留数据目录 → 是否保留证书目录。默认保留数据和证书。也可直接调用：
 
 ```bash
 UNINSTALL_KEEP_DATA=0 UNINSTALL_KEEP_CERTS=0 bash scripts/install.sh uninstall
 ```
 
-`upgrade` 和 `uninstall` 都依赖已有 `/etc/tfw/tfw.conf`。如果运行配置已经丢失，脚本无法可靠判断真实安装路径。
+<a id="docker"></a>
+
+## Docker 部署
+
+```bash
+docker compose up -d
+```
+
+或单独构建：
+
+```bash
+docker build -t tfw .
+docker run -d -p 80:80 -p 443:443 \
+  -e DOMAIN=files.example.com \
+  -e LANGUAGE=zh \
+  -e AUTH_USER=uploader \
+  -e AUTH_PASSWORD='strong-password' \
+  -v tfw-data:/srv/tfw/data \
+  -v tfw-config:/etc/tfw \
+  tfw
+```
+
+容器基于 `nginx:alpine`，启动时自动渲染配置后前台运行 nginx。ACME 证书申请在容器内需 80 端口可达。
 
 <a id="paths"></a>
 
@@ -358,123 +335,119 @@ UNINSTALL_KEEP_DATA=0 UNINSTALL_KEEP_CERTS=0 bash scripts/install.sh uninstall
 仓库结构：
 
 ```text
-bin/        tfw 运维命令
-nginx/      Nginx 站点模板
-scripts/    安装、升级、卸载脚本
-templates/  运行配置和 nginx.conf 参考模板
-web/        文件浏览页和上传页模板
+bin/            tfw 运维命令
+nginx/          Nginx 站点模板（HTTP、HTTPS、ACME、common、auth-map）
+scripts/        安装/升级/卸载入口
+scripts/lib/    模块化函数库（common、i18n、prompt、template、validate、deps、acme、auth）
+templates/      运行配置和 nginx.conf 参考
+web/            文件浏览页、上传页、共享样式模板
 ```
 
-关键文件：
+关键模板文件：
 
 | 文件 | 作用 |
 | --- | --- |
-| `bin/tfw` | 安装后的运维命令来源 |
+| `bin/tfw` | 安装后的运维命令 |
 | `scripts/install.sh` | 安装、升级、卸载入口 |
+| `scripts/lib/template.sh` | envsubst 模板渲染、页面 i18n |
+| `scripts/lib/validate.sh` | 输入校验和安装预检 |
 | `nginx/site-common.conf.template` | HTTP/HTTPS 共用站点逻辑 |
-| `nginx/site-http.conf.template` | HTTP 站点模板 |
-| `nginx/site-https.conf.template` | HTTPS 站点模板 |
-| `nginx/site-acme.conf.template` | ACME 临时站点模板 |
+| `nginx/site-auth-map.conf.template` | 会话 token 的 `map` 映射 |
+| `web/shared-styles.css.template` | 文件浏览和上传页共享 CSS |
 | `templates/tfw.conf.template` | 运行配置模板 |
-| `templates/nginx-main.conf.template` | 主 `nginx.conf` 参考模板 |
-| `web/file-browser.html.template` | 文件浏览页模板 |
-| `web/file-upload.html.template` | 上传页模板 |
 
-默认安装结果：
+安装后路径：
 
 | 路径 | 说明 |
 | --- | --- |
 | `/etc/tfw/tfw.conf` | 运行配置 |
 | `/usr/local/bin/tfw` | 运维命令 |
 | `/etc/nginx/conf.d/temp-file-web.conf` | Nginx 站点配置 |
+| `/etc/nginx/conf.d/temp-file-web-map.conf` | Nginx auth map 配置 |
 | `/etc/nginx/conf.d/temp-file-web-acme.conf` | ACME 临时配置 |
-| `/etc/tfw/sites/<site_id>/` | 站点资源目录 |
-| `/etc/tfw/sites/<site_id>/file-browser.html` | 文件浏览页面 |
-| `/etc/tfw/sites/<site_id>/file-upload.html` | 上传页面 |
+| `/etc/tfw/sites/<site_id>/file-browser.html` | 文件浏览页 |
+| `/etc/tfw/sites/<site_id>/file-upload.html` | 上传页 |
 | `/etc/tfw/sites/<site_id>/file-upload.htpasswd` | 上传认证文件 |
 | `/etc/tfw/sites/<site_id>/certs/` | 证书目录 |
-| `/srv/tfw/data` | 数据根目录 |
-| `/srv/tfw/data/uploads` | 上传目录 |
+| `/srv/tfw/data` | 数据根目录（也是默认上传目录） |
 | `/var/www/_acme-challenge` | ACME webroot |
 
 <a id="security"></a>
 
 ## 安全默认值
 
-默认安全设置：
-
 - HTTPS 模式只启用 `TLSv1.2` 和 `TLSv1.3`。
 - 启用 `Strict-Transport-Security`。
-- 启用 `X-Content-Type-Options: nosniff`。
-- 启用 `X-Frame-Options: SAMEORIGIN`。
-- 启用 `Referrer-Policy: strict-origin-when-cross-origin`。
-- 启用 `Permissions-Policy` 禁用地理位置、麦克风、摄像头。
+- `X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy: strict-origin-when-cross-origin`。
+- `Permissions-Policy` 禁用地理位置、麦克风、摄像头。
 - `server_tokens off`。
-- 上传认证文件使用 `umask 077` 写入，并设置为 `0640`。
-- 证书目录权限为 `0700`。
-- 上传和删除只开放在 `/_upload_api/`，作用范围是 `/uploads/` 对应目录。
-- 上传接口只允许 `PUT`、`DELETE` 和 `OPTIONS`。
-- 文件公开目录只允许 `GET`、`HEAD`、`OPTIONS`。
+- 上传认证文件 `umask 077` 写入、`0640` 权限。
+- 证书目录 `0700` 权限。
+- 上传接口仅开放 `PUT`、`DELETE`、`OPTIONS`，作用范围限 `${UPLOAD_DIR}`。
+- 公开目录仅 `GET`、`HEAD`、`OPTIONS`。
+- 会话 Cookie：Max-Age 24 小时、HttpOnly、SameSite Strict（HTTPS 下加 Secure）。
 - ACME challenge 只暴露 `/.well-known/acme-challenge/`。
+- 会话 token 通过 `nginx map` 指令校验，避免 `if ($cookie_xxx = "value")` 反模式。
 
-注意：上传完成后的文件默认公开可访问。如果你需要私有下载，需要调整 Nginx 模板，不应只依赖上传页认证。
+注意：上传完成的文件默认公开可访问。如需私有下载，需调整 Nginx 模板。
 
 <a id="migration"></a>
 
 ## 迁移部署
 
-迁移到新机器：
-
-1. 把仓库复制到目标机器。
-2. 确认 Nginx、端口、防火墙和域名解析可用。
+1. 将仓库复制到目标机器。
+2. 确认 Nginx、端口、防火墙和域名可用。
 3. 执行 `bash scripts/install.sh install`。
 4. 选择语言和安装模式。
-5. 输入访问主机、端口、域名和上传账号。
-6. 使用 `tfw info` 和 `tfw status` 验证。
+5. 配置访问主机、端口、域名、上传账号。
+6. 用 `tfw info` 和 `tfw status` 验证。
 
-如果迁移已有数据，建议先停止旧站点，再复制数据目录和证书目录。复制完成后执行 `bash scripts/install.sh upgrade` 重新渲染配置。
+迁移已有数据时，先停止旧站点，复制数据目录和证书目录到新机器，再执行 `bash scripts/install.sh upgrade`。
 
 <a id="troubleshooting"></a>
 
 ## 常见问题
 
-ACME 申请失败：
+**ACME 证书申请失败：**
 
-- 检查 `DOMAIN` 是否解析到当前机器。
-- 检查 80 端口是否被防火墙或云安全组放行。
-- 检查是否设置了非 80 的 `HTTP_PORT`。
-- 先用 `INSTALL_ACME=0` 部署 HTTP 站点，再排查证书问题。
+- 确认 `DOMAIN` 解析到当前机器。
+- 确认 80 端口被防火墙或云安全组放行。
+- 确认 `HTTP_PORT` 为 80。
+- 可先用 `INSTALL_ACME=0` 部署 HTTP 站点，再排查证书问题。
 
-上传失败：
+**上传失败：**
 
-- 使用 `tfw status` 检查站点是否可访问。
-- 使用 `tfw passwd` 重新生成认证文件。
-- 检查 Nginx 运行用户是否能写入上传目录。
+- `tfw status` 检查站点是否可访问。
+- `tfw passwd` 重新生成认证文件。
+- 检查 Nginx 运行用户能否写入 `${UPLOAD_DIR}`。
 - 检查 `MAX_UPLOAD_SIZE` 是否小于上传文件。
 
-删除按钮不显示或删除失败：
+**删除按钮不显示或删除失败：**
 
-- 先打开 `/upload` 登录，再打开 `/uploads/`。
-- 删除按钮只在 `/uploads/` 根目录的文件项上显示。
-- 执行 `bash scripts/install.sh upgrade` 确保已渲染新版 Nginx 配置和页面。
-- 使用 `tfw passwd` 重新生成认证文件后再登录测试。
-- 检查 Nginx 运行用户是否能删除上传目录中的文件。
+- 先打开 `/upload` 登录，再访问 `/uploads/`。
+- 删除按钮只在上传根目录的文件项上显示。
+- 执行 `bash scripts/install.sh upgrade` 确保配置为最新版本。
+- `tfw passwd` 重新生成认证文件后重试。
+- 检查 Nginx 运行用户能否删除上传目录中的文件。
 
-页面能打开但目录为空：
+**页面能打开但目录为空：**
 
-- 检查 `/srv/tfw/data` 或自定义 `DATA_DIR` 是否有文件。
+- 检查 `${DATA_DIR}` 是否有文件。
 - 检查 `/_listing/` 是否返回 JSON。
-- 使用 `tfw ls root` 和 `tfw ls uploads` 查看本地目录。
+- `tfw ls root` 查看本地文件。
 
-升级或卸载失败：
+**升级或卸载失败：**
 
-- 确认 `/etc/tfw/tfw.conf` 仍然存在。
-- 如果运行配置丢失，需要根据真实路径手动恢复配置后再执行脚本。
-- 不确定真实路径时，不要直接删除数据目录或证书目录。
+- 确认 `/etc/tfw/tfw.conf` 仍存在且包含 `TFW_PROJECT_DIR`。
+- 如运行配置丢失，按真实路径手动恢复后再执行脚本。
 
-Nginx 启动失败：
+**Nginx 启动失败：**
 
-- 执行 `nginx -t` 或 `tfw test` 查看具体错误。
+- `tfw test` 或 `nginx -t` 查看错误详情。
 - 检查端口是否冲突。
-- 检查证书文件路径是否存在。
-- 检查 `/etc/nginx/conf.d/` 里是否有其他站点配置冲突。
+- 检查证书路径是否存在。
+- 检查 `/etc/nginx/conf.d/` 中是否有其他站点配置冲突。
+
+**云服务器端口不通：**
+
+- 检查云安全组是否放行了 HTTP_PORT / HTTPS_PORT 入站规则。
