@@ -81,7 +81,7 @@ tfw status
 | `tfw time` | 显示本地时间、UTC 时间和主机名 |
 | `tfw info` | 显示运行配置、路径、文件状态和 URL |
 | `tfw urls` | 显示所有公开访问地址 |
-| `tfw cert` | 显示 acme.sh 和证书路径 |
+| `tfw cert` | 查看、设置、验证和重载证书路径配置 |
 | `tfw status` | Nginx 进程、HTTP 状态码、目录数量、磁盘空间 |
 | `tfw health` | `tfw status` 的别名 |
 | `tfw auth [user] [pass]` | 检查认证端点与密码校验 |
@@ -252,6 +252,18 @@ ACME 失败自动回退到 HTTP，后续手动补齐证书再 upgrade 切回 HTT
 bash scripts/install.sh upgrade
 ```
 
+证书路径也可以在安装后用 `tfw cert` 管理：
+
+```bash
+tfw cert                                   # 查看当前证书配置
+tfw cert set --cert /path/fullchain.cer \
+             --key /path/private.key      # 同时更新证书和私钥
+tfw cert validate                          # 校验证书路径和 nginx 配置
+tfw cert reload                            # 校验后重载 nginx
+```
+
+`tfw cert set` 会先更新 `/etc/tfw/tfw.conf` 和 Nginx 站点配置，再执行 `nginx -t`；如果校验失败，会自动回滚到更新前的配置。
+
 <a id="tfw-cli"></a>
 
 ## 运维命令
@@ -324,7 +336,7 @@ docker run -d -p 80:80 -p 443:443 \
   tfw
 ```
 
-容器基于 `nginx:alpine`，启动时自动渲染配置后前台运行 nginx。ACME 证书申请在容器内需 80 端口可达。
+容器基于 `nginx:alpine`，启动时会先渲染配置，再前台运行 nginx。当前镜像不会忽略安装失败；如果配置渲染或安装步骤出错，容器会直接退出。ACME 证书申请在容器内仍需要 80 端口可达。
 
 <a id="paths"></a>
 

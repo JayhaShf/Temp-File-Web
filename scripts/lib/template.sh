@@ -57,11 +57,11 @@ render_template() {
   export ACCESS_BASE="$(build_access_base)"
   export AUTH_COOKIE_FLAGS="$(build_auth_cookie_flags)"
   export AUTH_COOKIE_NAME="tfw_upload_auth"
-  export AUTH_FILE="$SITE_DIR/file-upload.htpasswd"
-  export BROWSER_HTML="$SITE_DIR/file-browser.html"
-  export UPLOAD_HTML="$SITE_DIR/file-upload.html"
-  export CERT_FILE="$SITE_DIR/certs/fullchain.cer"
-  export KEY_FILE="$SITE_DIR/certs/$SITE_ID.key"
+  export AUTH_FILE="${AUTH_FILE:-$SITE_DIR/file-upload.htpasswd}"
+  export BROWSER_HTML="${BROWSER_HTML:-$SITE_DIR/file-browser.html}"
+  export UPLOAD_HTML="${UPLOAD_HTML:-$SITE_DIR/file-upload.html}"
+  export CERT_FILE="${CERT_FILE:-$SITE_DIR/certs/fullchain.cer}"
+  export KEY_FILE="${KEY_FILE:-$SITE_DIR/certs/$SITE_ID.key}"
   export CONF="$CONF_FILE"
 
   envsubst '
