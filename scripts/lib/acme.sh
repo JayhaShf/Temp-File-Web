@@ -69,7 +69,7 @@ issue_certificate_if_enabled() {
 }
 
 have_tls_assets() {
-  [[ -f "$SITE_DIR/certs/fullchain.cer" && -f "$SITE_DIR/certs/$SITE_ID.key" ]]
+  [[ -f "${CERT_FILE:-$SITE_DIR/certs/fullchain.cer}" && -f "${KEY_FILE:-$SITE_DIR/certs/$SITE_ID.key}" ]]
 }
 
 set_site_mode() {

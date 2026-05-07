@@ -1,0 +1,16 @@
+pub mod auth;
+pub mod cert;
+pub mod config_cmd;
+pub mod doctor;
+pub mod info;
+pub mod logs;
+pub mod ls;
+pub mod passwd;
+pub mod restart;
+pub mod session;
+pub mod status;
+pub mod test;
+pub mod time;
+pub mod uninstall;
+pub mod update;
+pub mod urls;

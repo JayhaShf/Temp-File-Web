@@ -12,7 +12,7 @@ export INSTALL_ACME="${INSTALL_ACME:-0}"
 export AUTO_INSTALL_DEPS=0
 export TFW_USER="nginx"
 
-bash scripts/install.sh install || true
+bash scripts/install.sh install
 
 # Fix nginx user for alpine
 sed -i 's/^user .*/user nginx;/' /etc/nginx/nginx.conf 2>/dev/null || true
